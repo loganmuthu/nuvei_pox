@@ -349,7 +349,7 @@
 
   document.getElementById("redirectBtn").addEventListener("click", (e) => {
     const url = e.target.dataset.url;
-    if (url) window.location.href = url;
+    if (url) window.open(url, "_blank", "noopener,noreferrer");
   });
 
   document.getElementById("clearLogBtn").addEventListener("click", () => {
