@@ -211,6 +211,34 @@
     el.className = "status-pill status-" + status;
   }
 
+  // Switching APMs starts a fresh payment attempt — clear every downstream step's
+  // results/request-response panels so nothing from a previous APM's attempt lingers.
+  // Step 1 (session) and Step 2's own prepopulated fields are untouched.
+  function resetDownstreamSteps() {
+    ["pay", "dmn", "verify", "ops"].forEach((prefix) => {
+      document.getElementById(`${prefix}-req`).textContent = "—";
+      document.getElementById(`${prefix}-res`).textContent = "—";
+    });
+
+    document.getElementById("payResult").textContent = "";
+    document.getElementById("redirectArea").textContent = "—";
+    const redirectBtn = document.getElementById("redirectBtn");
+    redirectBtn.disabled = true;
+    delete redirectBtn.dataset.url;
+
+    setStatus("PENDING");
+
+    document.getElementById("verifyResult").textContent = "";
+    document.getElementById("checkStatusBtn").disabled = true;
+    document.getElementById("txnDetailsBtn").disabled = true;
+
+    document.getElementById("opsResult").textContent = "";
+    document.getElementById("opsLog").textContent = "";
+    document.getElementById("captureBtn").disabled = true;
+    document.getElementById("voidBtn").disabled = true;
+    document.getElementById("refundBtn").disabled = true;
+  }
+
   function renderApmFields(apm) {
     const container = document.getElementById("apmFields");
     container.innerHTML = "";
@@ -245,6 +273,7 @@
   function selectApm(code) {
     selectedApm = apms.find((a) => a.code === code);
     document.getElementById("apmSelect").value = code;
+    resetDownstreamSteps();
 
     const detail = document.getElementById("apmDetail");
     detail.style.display = "block";
