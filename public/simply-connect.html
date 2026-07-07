@@ -107,7 +107,10 @@
 
   <div class="sidebar">
     <div class="card log-panel">
-      <h2><span id="sseDot" class="sse-dot"></span>Live event log</h2>
+      <div class="log-panel-header">
+        <h2><span id="sseDot" class="sse-dot"></span>Live event log</h2>
+        <button id="clearLogBtn" class="secondary">Clear</button>
+      </div>
       <p class="hint">Full timeline across all steps — including real-time DMN — over SSE.</p>
       <div id="logStream" class="log-stream"></div>
     </div>
@@ -206,6 +209,10 @@
     appendLog("client", "/status response", data);
     showIO("verify", { orderId }, data);
     if (data.transactionStatus) setStatus(data.transactionStatus);
+  });
+
+  document.getElementById("clearLogBtn").addEventListener("click", () => {
+    logStream.innerHTML = "";
   });
 
   const es = new EventSource("/api/events");

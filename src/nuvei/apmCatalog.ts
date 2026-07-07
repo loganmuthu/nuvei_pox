@@ -37,6 +37,16 @@ export const APM_CATALOG: ApmDefinition[] = [
     ],
   },
   {
+    code: "apmgw_BLIK_Redirect",
+    label: "BLIK (redirect)",
+    description:
+      "Polish redirect-flow variant of BLIK. No blik_code field — the customer is redirected to a Nuvei/bank-hosted page to enter their code and confirm, instead of entering it inline on your site. Requires the standard firstName/lastName/email (already collected in Step 2).",
+    flowType: "redirect",
+    country: "PL",
+    currency: "PLN",
+    fields: [],
+  },
+  {
     code: "apmgw_iDeal",
     label: "iDEAL",
     description:

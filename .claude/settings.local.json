@@ -34,7 +34,12 @@
       "Bash(curl -s -X POST http://localhost:3000/api/hpp/build-url -H \"Content-Type: application/json\" -d '{\"totalAmount\":\"10.00\",\"currency\":\"EUR\",\"userTokenId\":\"test@example.com\",\"itemName\":\"Test order\"}')",
       "Bash(curl -s -X POST http://localhost:3000/api/hpp/simulate-return -H \"Content-Type: application/json\" -d '{\"status\":\"APPROVED\",\"totalAmount\":\"10.00\",\"currency\":\"EUR\"}')",
       "Bash(curl -s -X POST http://localhost:3000/api/simply-connect/session -H \"Content-Type: application/json\" -d '{\"amount\":\"10.00\",\"currency\":\"USD\"}')",
-      "Bash(curl -s http://localhost:3000/api/simply-connect/orders/fake-id/status)"
+      "Bash(curl -s http://localhost:3000/api/simply-connect/orders/fake-id/status)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" --max-time 3 http://localhost:3000/test.html)",
+      "Bash(curl -s -o /dev/null -w \"test.html: %{http_code}\\\\n\" --max-time 3 http://localhost:3000/test.html)",
+      "Bash(curl -s -o /dev/null -w \"api/orders \\(POST\\): %{http_code}\\\\n\" --max-time 3 -X POST http://localhost:3000/api/orders)",
+      "Bash(timeout 2 curl -s -N --max-time 2 http://localhost:3000/api/events)",
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{const j=JSON.parse\\(d\\);console.log\\(j.length,'APMs:'\\);j.forEach\\(a=>console.log\\(' -',a.code, a.flowType\\)\\)}\\)\")"
     ]
   }
 }

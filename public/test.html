@@ -56,32 +56,27 @@
     <div class="card">
       <h2><span class="step-num">Step 2</span>Select APM, customer details &amp; amount</h2>
       <p class="hint">
-        Choosing an APM loads its description, flow type, and mandatory fields. This step doesn't call Nuvei directly —
-        everything collected here (including amount/currency) is sent together as the Step 3 <code>/payment</code> request.
+        Choosing an APM loads its description, flow type, and mandatory fields. Everything collected here
+        (including amount/currency) is sent together as the Step 3 <code>/payment</code> request.
       </p>
-      <div class="step-body">
-        <div>
-          <label>APM</label>
-          <select id="apmSelect"></select>
-          <div id="apmDetail" class="apm-detail" style="display:none;"></div>
-          <div class="row" style="margin-top:12px;">
-            <div><label>Amount</label><input id="amount" value="10.00" /></div>
-            <div><label>Currency</label><input id="currency" value="EUR" /></div>
-          </div>
-          <div class="row">
-            <div><label>First name</label><input id="firstName" value="Jane" /></div>
-            <div><label>Last name</label><input id="lastName" value="Doe" /></div>
-          </div>
-          <div class="row">
-            <div><label>Email</label><input id="email" value="jane.doe@example.com" /></div>
-            <div><label>Country</label><input id="country" value="NL" /></div>
-          </div>
-          <div id="commonExtraFields"></div>
-          <div id="apmFields"></div>
+      <div>
+        <label>APM</label>
+        <select id="apmSelect"></select>
+        <div id="apmDetail" class="apm-detail" style="display:none;"></div>
+        <div class="row" style="margin-top:12px;">
+          <div><label>Amount</label><input id="amount" value="10.00" /></div>
+          <div><label>Currency</label><input id="currency" value="EUR" /></div>
         </div>
-        <div class="step-io">
-          <p class="io-note">No direct Nuvei call in this step — the fields collected here are sent as part of the Step 3 <code>/payment</code> request.</p>
+        <div class="row">
+          <div><label>First name</label><input id="firstName" value="Jane" /></div>
+          <div><label>Last name</label><input id="lastName" value="Doe" /></div>
         </div>
+        <div class="row">
+          <div><label>Email</label><input id="email" value="jane.doe@example.com" /></div>
+          <div><label>Country</label><input id="country" value="NL" /></div>
+        </div>
+        <div id="commonExtraFields"></div>
+        <div id="apmFields"></div>
       </div>
     </div>
 
@@ -98,6 +93,7 @@
         <div>
           <button id="payBtn" disabled>Initiate payment</button>
           <div id="payResult" class="status-line"></div>
+          <button id="redirectBtn" class="secondary" disabled>Go to redirect page</button>
           <div id="redirectArea" class="status-line">—</div>
         </div>
         <div class="step-io">
@@ -177,7 +173,10 @@
 
   <div class="sidebar">
     <div class="card log-panel">
-      <h2><span id="sseDot" class="sse-dot"></span>Live event log</h2>
+      <div class="log-panel-header">
+        <h2><span id="sseDot" class="sse-dot"></span>Live event log</h2>
+        <button id="clearLogBtn" class="secondary">Clear</button>
+      </div>
       <p class="hint">Full timeline across all steps — client requests, server responses, and DMN events, in real time over SSE.</p>
       <div id="logStream" class="log-stream"></div>
     </div>
@@ -322,11 +321,16 @@
 
     const resultEl = document.getElementById("payResult");
     const redirectEl = document.getElementById("redirectArea");
+    const redirectBtn = document.getElementById("redirectBtn");
     if (res.ok) {
       resultEl.textContent = "transactionStatus: " + data.transactionStatus;
       if (data.transactionStatus === "REDIRECT" && data.redirectUrl) {
-        redirectEl.innerHTML = `<a class="redirect-link" href="${data.redirectUrl}" target="_blank">Open APM redirect URL ↗</a>`;
+        redirectBtn.disabled = false;
+        redirectBtn.dataset.url = data.redirectUrl;
+        redirectEl.textContent = "redirectUrl received — click the button above to go there.";
       } else {
+        redirectBtn.disabled = true;
+        delete redirectBtn.dataset.url;
         redirectEl.textContent = "No redirect required for this APM/result.";
         if (data.transactionStatus === "APPROVED" || data.transactionStatus === "DECLINED") {
           setStatus(data.transactionStatus);
@@ -338,6 +342,15 @@
     } else {
       resultEl.textContent = "Error: " + data.error;
     }
+  });
+
+  document.getElementById("redirectBtn").addEventListener("click", (e) => {
+    const url = e.target.dataset.url;
+    if (url) window.location.href = url;
+  });
+
+  document.getElementById("clearLogBtn").addEventListener("click", () => {
+    logStream.innerHTML = "";
   });
 
   document.getElementById("checkStatusBtn").addEventListener("click", async () => {
