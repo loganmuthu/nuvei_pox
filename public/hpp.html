@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Nuvei Hosted Payment Page (HPP) — Integration Test Console</title>
+<link rel="stylesheet" href="common.css" />
+<link rel="stylesheet" href="nav.css" />
+</head>
+<body>
+
+<nav class="flavor-nav">
+  <a href="test.html">REST API</a>
+  <a href="hpp.html" class="active">Hosted Payment Page (HPP)</a>
+  <a href="simply-connect.html">Simply Connect</a>
+</nav>
+
+<header>
+  <h1>Nuvei Hosted Payment Page (HPP / Cashier) — Integration Test Console</h1>
+  <p>
+    HPP is the simplest Nuvei flavor: your backend signs a set of parameters and redirects the customer's
+    browser straight to Nuvei's hosted page (<code>/ppp/purchase.do</code>) — no session token, no client-side
+    SDK, minimal server logic. (1) Build a checksum-signed redirect URL server-side (the secret key must never
+    reach the browser), (2) redirect the customer there to enter payment details on Nuvei's page, (3) Nuvei
+    redirects back to your <code>successUrl</code>/<code>failureUrl</code>/<code>pendingUrl</code> with signed
+    output parameters, and (4) the same <strong>DMN</strong> webhook used by the other two flavors delivers the
+    final authoritative status.
+  </p>
+</header>
+
+<div class="layout">
+  <div>
+
+    <div class="card">
+      <h2><span class="step-num">Step 1</span>Build the signed redirect URL</h2>
+      <p class="hint">
+        Calls our backend, which computes the HPP checksum server-side — <strong>SHA-256(secretKey + all parameter
+        VALUES concatenated in submission order)</strong>. This is a different formula from the REST API's
+        field-based checksum; HPP is Nuvei's older query-string/form flow.
+      </p>
+      <div class="step-body">
+        <div>
+          <div class="row">
+            <div><label>Amount</label><input id="hppAmount" value="10.00" /></div>
+            <div><label>Currency</label><input id="hppCurrency" value="EUR" /></div>
+          </div>
+          <div class="row">
+            <div><label>User token / email</label><input id="hppUserToken" value="jane.doe@example.com" /></div>
+            <div><label>Item name</label><input id="hppItemName" value="Test order" /></div>
+          </div>
+          <button id="buildUrlBtn">Build redirect URL</button>
+          <div id="buildResult" class="status-line"></div>
+        </div>
+        <div class="step-io">
+          <div class="io-block"><h3>Request → our backend</h3><pre id="build-req">—</pre></div>
+          <div class="io-block"><h3>Response ← our backend (signed URL + params)</h3><pre id="build-res">—</pre></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><span class="step-num">Step 2</span>Redirect to Nuvei's hosted page</h2>
+      <p class="hint">
+        In production this is a real browser redirect (or full-page/IFrame load) to
+        <code>https://ppp-test.safecharge.com/ppp/purchase.do?...&amp;checksum=...</code>. Against placeholder
+        credentials this will show Nuvei's own error page rather than a real checkout — but it confirms the
+        signed URL construction is correct.
+      </p>
+      <div id="redirectLinkArea" class="status-line">Build the URL in Step 1 first.</div>
+    </div>
+
+    <div class="card">
+      <h2><span class="step-num">Step 3</span>Return / output parameters</h2>
+      <p class="hint">
+        Nuvei can only redirect a real customer's browser to a publicly reachable
+        <code>successUrl</code>/<code>failureUrl</code>/<code>pendingUrl</code> — unreachable from a local dev
+        server, same limitation as DMNs. Use the simulate buttons to generate a correctly-signed return payload
+        and validate it through the real checksum-verification code path.
+      </p>
+      <div class="step-body">
+        <div>
+          <button id="simulateHppApprove" class="secondary">Simulate return: APPROVED</button>
+          <button id="simulateHppDecline" class="danger">Simulate return: DECLINED</button>
+          <div id="returnResult" class="status-line"></div>
+        </div>
+        <div class="step-io">
+          <div class="io-block"><h3>Simulated return payload ← Nuvei</h3><pre id="return-req">—</pre></div>
+          <div class="io-block"><h3>Checksum validation result</h3><pre id="return-res">—</pre></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><span class="step-num">Step 4</span>DMN (shared with the other flavors)</h2>
+      <p class="hint">
+        HPP's <code>notify_url</code> (built into the Step 1 request) points at the same
+        <code>/webhooks/nuvei/dmn</code> endpoint the REST API and Simply Connect flows use — DMN delivery is
+        flow-agnostic in Nuvei's architecture. Any DMN received while this page is open will appear live in the
+        event log on the right.
+      </p>
+      <div id="dmnNote" class="status-line">Waiting for a DMN…</div>
+    </div>
+
+  </div>
+
+  <div class="sidebar">
+    <div class="card log-panel">
+      <h2><span id="sseDot" class="sse-dot"></span>Live event log</h2>
+      <p class="hint">Full timeline across all steps, in real time over SSE.</p>
+      <div id="logStream" class="log-stream"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const logStream = document.getElementById("logStream");
+  function appendLog(tag, label, data) {
+    const entry = document.createElement("div");
+    entry.className = "log-entry";
+    const time = new Date().toLocaleTimeString();
+    entry.innerHTML = `<span class="log-tag tag-${tag}">${tag}</span><strong>${time} — ${label}</strong><pre>${JSON.stringify(data, null, 2)}</pre>`;
+    logStream.appendChild(entry);
+    logStream.scrollTop = logStream.scrollHeight;
+  }
+
+  function showIO(prefix, request, response) {
+    const reqEl = document.getElementById(`${prefix}-req`);
+    const resEl = document.getElementById(`${prefix}-res`);
+    if (reqEl) reqEl.textContent = JSON.stringify(request, null, 2);
+    if (resEl) resEl.textContent = JSON.stringify(response, null, 2);
+  }
+
+  let lastBuilt = null;
+
+  document.getElementById("buildUrlBtn").addEventListener("click", async () => {
+    const reqBody = {
+      totalAmount: document.getElementById("hppAmount").value,
+      currency: document.getElementById("hppCurrency").value,
+      userTokenId: document.getElementById("hppUserToken").value,
+      itemName: document.getElementById("hppItemName").value,
+    };
+    appendLog("client", "POST /api/hpp/build-url", reqBody);
+    const res = await fetch("/api/hpp/build-url", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(reqBody),
+    });
+    const data = await res.json();
+    appendLog("client", "/hpp/build-url response", data);
+    showIO("build", reqBody, data);
+
+    const resultEl = document.getElementById("buildResult");
+    const linkArea = document.getElementById("redirectLinkArea");
+    if (res.ok) {
+      lastBuilt = { ...reqBody };
+      resultEl.textContent = "Redirect URL built and signed.";
+      linkArea.innerHTML = `<a class="redirect-link" href="${data.redirectUrl}" target="_blank">Open Nuvei Hosted Payment Page ↗</a>`;
+    } else {
+      resultEl.textContent = "Error: " + data.error;
+    }
+  });
+
+  document.getElementById("simulateHppApprove").addEventListener("click", () => simulateReturn("APPROVED"));
+  document.getElementById("simulateHppDecline").addEventListener("click", () => simulateReturn("DECLINED"));
+
+  async function simulateReturn(status) {
+    if (!lastBuilt) {
+      document.getElementById("returnResult").textContent = "Build a redirect URL in Step 1 first.";
+      return;
+    }
+    const reqBody = { status, totalAmount: lastBuilt.totalAmount, currency: lastBuilt.currency };
+    appendLog("client", "POST /api/hpp/simulate-return", reqBody);
+    const res = await fetch("/api/hpp/simulate-return", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(reqBody),
+    });
+    const data = await res.json();
+    appendLog("client", "/hpp/simulate-return response", data);
+    showIO("return", data.returnPayload, { validChecksum: data.validChecksum });
+    document.getElementById("returnResult").textContent = res.ok
+      ? "Return simulated — checksum valid: " + data.validChecksum
+      : "Error: " + data.error;
+  }
+
+  const es = new EventSource("/api/events");
+  es.onopen = () => document.getElementById("sseDot").classList.add("live");
+  es.onerror = () => document.getElementById("sseDot").classList.remove("live");
+  es.onmessage = (e) => {
+    const evt = JSON.parse(e.data);
+    const tag = evt.type === "dmn_received" ? "dmn" : "server";
+    appendLog(tag, evt.type, evt.data);
+    if (evt.type === "dmn_received") {
+      document.getElementById("dmnNote").textContent = "DMN received — see log for details.";
+    }
+  };
+</script>
+</body>
+</html>

@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Nuvei Simply Connect — Integration Test Console</title>
+<link rel="stylesheet" href="common.css" />
+<link rel="stylesheet" href="nav.css" />
+<script src="https://cdn.safecharge.com/safecharge_resources/v1/checkout/checkout.js"></script>
+</head>
+<body>
+
+<nav class="flavor-nav">
+  <a href="test.html">REST API</a>
+  <a href="hpp.html">Hosted Payment Page (HPP)</a>
+  <a href="simply-connect.html" class="active">Simply Connect</a>
+</nav>
+
+<header>
+  <h1>Nuvei Simply Connect — Integration Test Console</h1>
+  <p>
+    Simply Connect is a hybrid flow: a lightweight embedded checkout UI rendered client-side, backed by a
+    server-side session. (1) Your backend calls <strong>/openOrder</strong> (this flavor's documented session
+    call — not <code>/getSessionToken</code>, which is specific to the REST APM flow elsewhere in this
+    console) to get a <code>sessionToken</code>, since <code>/openOrder</code> requires the merchant secret key
+    and must never run in the browser, (2) the frontend loads <code>checkout.js</code> and calls
+    <strong>checkout()</strong> with that token to render the embedded payment form, (3) the widget's
+    <code>onResult</code> callback returns a client-side result which must be treated as untrusted, and (4) the
+    backend cross-checks via <strong>/getPaymentStatus</strong> or the same shared <strong>DMN</strong> webhook.
+  </p>
+</header>
+
+<div class="layout">
+  <div>
+
+    <div class="card">
+      <h2><span class="step-num">Step 1</span>Backend: open order &amp; get session token</h2>
+      <p class="hint">
+        Calls <code>/openOrder</code> server-side — <code>amount</code>/<code>currency</code> are required here
+        because they're baked into the checksum, same formula as the REST API's confirmed <code>/openOrder</code>
+        pattern. The response's <code>sessionToken</code> (not the secret key) is the only thing sent to the browser.
+      </p>
+      <div class="step-body">
+        <div>
+          <div class="row">
+            <div><label>Amount</label><input id="scAmount" value="10.00" /></div>
+            <div><label>Currency</label><input id="scCurrency" value="USD" /></div>
+          </div>
+          <button id="scSessionBtn">Open order / get session</button>
+          <div id="scSessionResult" class="status-line"></div>
+        </div>
+        <div class="step-io">
+          <div class="io-block"><h3>Request → Nuvei (/openOrder)</h3><pre id="session-req">—</pre></div>
+          <div class="io-block"><h3>Response ← Nuvei</h3><pre id="session-res">—</pre></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><span class="step-num">Step 2</span>Frontend: render checkout()</h2>
+      <p class="hint">
+        Loads Nuvei's <code>checkout.js</code> and calls <strong>checkout()</strong> directly in the browser with
+        the <code>sessionToken</code> from Step 1 — the exact call a real integration makes. Against placeholder
+        credentials this will render an error from Nuvei's widget rather than a working form, but the SDK
+        invocation itself is real and would work unmodified once real credentials are in <code>.env</code>.
+      </p>
+      <div class="step-body">
+        <div>
+          <div class="row">
+            <div><label>Full name</label><input id="scFullName" value="Jane Doe" /></div>
+            <div><label>Email</label><input id="scEmail" value="jane.doe@example.com" /></div>
+          </div>
+          <div class="row">
+            <div><label>Country</label><input id="scCountry" value="US" /></div>
+            <div><label>Locale</label><input id="scLocale" value="en_US" /></div>
+          </div>
+          <button id="scRenderBtn" disabled>Render checkout()</button>
+          <div id="scRenderResult" class="status-line"></div>
+          <div id="checkout" style="width:100%;max-width:400px;min-height:200px;margin-top:12px;border:1px solid #d3dce6;border-radius:6px;"></div>
+        </div>
+        <div class="step-io">
+          <div class="io-block"><h3>checkout() call params (client-side)</h3><pre id="checkout-req">—</pre></div>
+          <div class="io-block"><h3>onResult callback (untrusted — verify in Step 3)</h3><pre id="checkout-res">—</pre></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><span class="step-num">Step 3</span>Backend: verify the result</h2>
+      <p class="hint">
+        Never trust <code>onResult</code> alone — cross-check server-side via <strong>/getPaymentStatus</strong>
+        (works only while the session is open; don't poll it repeatedly) or wait for the shared
+        <strong>DMN</strong> webhook, which is recommended for async APM transactions in particular.
+      </p>
+      <div class="step-body">
+        <div>
+          <button id="scVerifyBtn" class="secondary" disabled>Check /getPaymentStatus</button>
+          <p>Order status: <span id="scOrderStatus" class="status-pill status-PENDING">—</span></p>
+        </div>
+        <div class="step-io">
+          <div class="io-block"><h3>Request → Nuvei (/getPaymentStatus)</h3><pre id="verify-req">—</pre></div>
+          <div class="io-block"><h3>Response ← Nuvei</h3><pre id="verify-res">—</pre></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="sidebar">
+    <div class="card log-panel">
+      <h2><span id="sseDot" class="sse-dot"></span>Live event log</h2>
+      <p class="hint">Full timeline across all steps — including real-time DMN — over SSE.</p>
+      <div id="logStream" class="log-stream"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let orderId = null;
+  let sessionInfo = null;
+
+  const logStream = document.getElementById("logStream");
+  function appendLog(tag, label, data) {
+    const entry = document.createElement("div");
+    entry.className = "log-entry";
+    const time = new Date().toLocaleTimeString();
+    entry.innerHTML = `<span class="log-tag tag-${tag}">${tag}</span><strong>${time} — ${label}</strong><pre>${JSON.stringify(data, null, 2)}</pre>`;
+    logStream.appendChild(entry);
+    logStream.scrollTop = logStream.scrollHeight;
+  }
+
+  function showIO(prefix, request, response) {
+    const reqEl = document.getElementById(`${prefix}-req`);
+    const resEl = document.getElementById(`${prefix}-res`);
+    if (reqEl) reqEl.textContent = JSON.stringify(request, null, 2);
+    if (resEl) resEl.textContent = JSON.stringify(response, null, 2);
+  }
+
+  function setStatus(status) {
+    const el = document.getElementById("scOrderStatus");
+    el.textContent = status;
+    el.className = "status-pill status-" + status;
+  }
+
+  document.getElementById("scSessionBtn").addEventListener("click", async () => {
+    const reqBody = {
+      amount: document.getElementById("scAmount").value,
+      currency: document.getElementById("scCurrency").value,
+    };
+    appendLog("client", "POST /api/simply-connect/session", reqBody);
+    const res = await fetch("/api/simply-connect/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(reqBody),
+    });
+    const data = await res.json();
+    appendLog("client", "/simply-connect/session response", data);
+    showIO("session", reqBody, data);
+
+    if (res.ok) {
+      orderId = data.orderId;
+      sessionInfo = data;
+      document.getElementById("scSessionResult").textContent = "Session ready — internal orderId: " + orderId;
+      document.getElementById("scRenderBtn").disabled = false;
+      setStatus("PENDING");
+    } else {
+      document.getElementById("scSessionResult").textContent = "Error: " + data.error;
+    }
+  });
+
+  document.getElementById("scRenderBtn").addEventListener("click", () => {
+    const params = {
+      sessionToken: sessionInfo.sessionToken,
+      env: sessionInfo.env,
+      merchantSiteId: sessionInfo.merchantSiteId,
+      merchantId: sessionInfo.merchantId,
+      country: document.getElementById("scCountry").value,
+      locale: document.getElementById("scLocale").value,
+      currency: document.getElementById("scCurrency").value,
+      amount: document.getElementById("scAmount").value,
+      fullName: document.getElementById("scFullName").value,
+      email: document.getElementById("scEmail").value,
+      renderTo: "#checkout",
+      onResult: function (result) {
+        appendLog("client", "checkout() onResult", result);
+        showIO("checkout", params, result);
+        document.getElementById("scRenderResult").textContent =
+          "onResult received — transactionStatus: " + (result && result.transactionStatus);
+        document.getElementById("scVerifyBtn").disabled = false;
+      },
+    };
+    showIO("checkout", params, { note: "Waiting for onResult…" });
+    appendLog("client", "checkout() invoked", params);
+    try {
+      checkout(params);
+      document.getElementById("scRenderResult").textContent = "checkout() invoked — widget rendering…";
+    } catch (err) {
+      document.getElementById("scRenderResult").textContent = "checkout() threw: " + err.message;
+      appendLog("client", "checkout() error", { message: err.message });
+    }
+  });
+
+  document.getElementById("scVerifyBtn").addEventListener("click", async () => {
+    appendLog("client", `GET /api/simply-connect/orders/${orderId}/status`, {});
+    const res = await fetch(`/api/simply-connect/orders/${orderId}/status`);
+    const data = await res.json();
+    appendLog("client", "/status response", data);
+    showIO("verify", { orderId }, data);
+    if (data.transactionStatus) setStatus(data.transactionStatus);
+  });
+
+  const es = new EventSource("/api/events");
+  es.onopen = () => document.getElementById("sseDot").classList.add("live");
+  es.onerror = () => document.getElementById("sseDot").classList.remove("live");
+  es.onmessage = (e) => {
+    const evt = JSON.parse(e.data);
+    const tag = evt.type === "dmn_received" ? "dmn" : "server";
+    appendLog(tag, evt.type, evt.data);
+  };
+</script>
+</body>
+</html>

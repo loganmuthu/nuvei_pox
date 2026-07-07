@@ -1,0 +1,40 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:docs.nuvei.com)",
+      "Bash(npx tsc *)",
+      "Bash(curl -s http://localhost:3000/api/apms)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3000/test.html)",
+      "Bash(curl -s -X POST http://localhost:3000/api/orders -H \"Content-Type: application/json\" -d '{\"amount\":\"10.00\",\"currency\":\"EUR\"}')",
+      "Bash(curl -s -X POST http://localhost:3000/api/test/simulate-dmn -H \"Content-Type: application/json\" -d '{\"orderId\":\"nonexistent\",\"status\":\"APPROVED\"}')",
+      "Bash(timeout 2 curl -s -N http://localhost:3000/api/events)",
+      "Bash(break)",
+      "WebSearch",
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{const j=JSON.parse\\(d\\);console.log\\(j.length,'APMs:',j.map\\(a=>a.code\\).join\\(', '\\)\\)}\\)\")",
+      "Bash(curl -s -o /dev/null -w \"test.html: %{http_code}\\\\n\" http://localhost:3000/test.html)",
+      "Bash(curl -s -o /dev/null -w \"apms: %{http_code}\\\\n\" http://localhost:3000/api/apms)",
+      "PowerShell(Get-NetTCPConnection *)",
+      "PowerShell(Stop-Process *)",
+      "Bash(npm run *)",
+      "Bash(curl -s http://localhost:3000/api/orders/fake-id/payment-status)",
+      "Bash(curl -s -X POST http://localhost:3000/api/orders/fake-id/capture -H \"Content-Type: application/json\" -d '{}')",
+      "Bash(node -e \"require\\('fs'\\).readFileSync\\('D:/Logan/nevei/public/test.html','utf8'\\)\")",
+      "Bash(node -e ' *)",
+      "Bash(node --check /tmp/test_script.js)",
+      "Bash(node --check test_script_check.js)",
+      "Bash(rm test_script_check.js)",
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{const j=JSON.parse\\(d\\);console.log\\(j.length,'APMs live'\\)}\\)\")",
+      "Bash(curl -s -X POST http://localhost:3000/api/orders)",
+      "Bash(curl -s -X POST http://localhost:3000/api/orders/fake-id/pay -H \"Content-Type: application/json\" -d '{\"paymentMethod\":\"apmgw_BLIK\",\"fields\":{\"blik_code\":\"777654\"},\"email\":\"a@b.com\",\"firstName\":\"A\",\"lastName\":\"B\",\"country\":\"PL\"}')",
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{const j=JSON.parse\\(d\\);console.log\\(j.length,'APMs available for dropdown'\\)}\\)\")",
+      "Bash(curl -s -o /dev/null -w \"common.css: %{http_code}\\\\n\" http://localhost:3000/common.css)",
+      "Bash(curl -s -o /dev/null -w \"nav.css: %{http_code}\\\\n\" http://localhost:3000/nav.css)",
+      "Bash(curl -s -o /dev/null -w \"hpp.html: %{http_code}\\\\n\" http://localhost:3000/hpp.html)",
+      "Bash(curl -s -o /dev/null -w \"simply-connect.html: %{http_code}\\\\n\" http://localhost:3000/simply-connect.html)",
+      "Bash(curl -s -X POST http://localhost:3000/api/hpp/build-url -H \"Content-Type: application/json\" -d '{\"totalAmount\":\"10.00\",\"currency\":\"EUR\",\"userTokenId\":\"test@example.com\",\"itemName\":\"Test order\"}')",
+      "Bash(curl -s -X POST http://localhost:3000/api/hpp/simulate-return -H \"Content-Type: application/json\" -d '{\"status\":\"APPROVED\",\"totalAmount\":\"10.00\",\"currency\":\"EUR\"}')",
+      "Bash(curl -s -X POST http://localhost:3000/api/simply-connect/session -H \"Content-Type: application/json\" -d '{\"amount\":\"10.00\",\"currency\":\"USD\"}')",
+      "Bash(curl -s http://localhost:3000/api/simply-connect/orders/fake-id/status)"
+    ]
+  }
+}
