@@ -324,7 +324,10 @@
     const redirectBtn = document.getElementById("redirectBtn");
     if (res.ok) {
       resultEl.textContent = "transactionStatus: " + data.transactionStatus;
-      if (data.transactionStatus === "REDIRECT" && data.redirectUrl) {
+      // Driven by redirectUrl presence, not an exact transactionStatus === "REDIRECT" match —
+      // some APMs return a redirectUrl alongside a transactionStatus other than the literal
+      // string "REDIRECT" (e.g. casing differences, or PENDING with a follow-up redirect step).
+      if (data.redirectUrl) {
         redirectBtn.disabled = false;
         redirectBtn.dataset.url = data.redirectUrl;
         redirectEl.textContent = "redirectUrl received — click the button above to go there.";
