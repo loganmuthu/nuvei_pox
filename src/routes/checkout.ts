@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { randomUUID } from "crypto";
 import { getSessionToken, payApm } from "../nuvei/client";
+import { extractRedirectUrl } from "../nuvei/types";
 import { getOrder, saveOrder } from "../store/orderStore";
 import { APM_CATALOG, findApm } from "../nuvei/apmCatalog";
 import { publish } from "../events";
@@ -134,7 +135,7 @@ checkoutRouter.post("/orders/:orderId/pay", async (req, res) => {
   res.json({
     transactionStatus: result.transactionStatus,
     transactionId: result.transactionId,
-    redirectUrl: result.redirectUrl,
+    redirectUrl: extractRedirectUrl(result),
   });
 });
 

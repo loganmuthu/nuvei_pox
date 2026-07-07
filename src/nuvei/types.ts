@@ -11,11 +11,19 @@ export interface PaymentResponse {
   transactionId?: string;
   authCode?: string;
   transactionStatus: "APPROVED" | "DECLINED" | "ERROR" | "REDIRECT" | "PENDING";
+  // Confirmed to actually appear nested under paymentOption for at least some APMs, despite
+  // being documented top-level in Nuvei's published examples — extractRedirectUrl() below
+  // checks both locations rather than trusting one shape.
   redirectUrl?: string;
+  paymentOption?: { redirectUrl?: string };
   userPaymentOptionId?: string;
   status: "SUCCESS" | "ERROR";
   errCode: number;
   reason: string;
+}
+
+export function extractRedirectUrl(result: PaymentResponse): string | undefined {
+  return result.redirectUrl ?? result.paymentOption?.redirectUrl;
 }
 
 export interface PaymentStatusResponse {
