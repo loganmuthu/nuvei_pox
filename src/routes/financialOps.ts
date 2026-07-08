@@ -7,30 +7,37 @@ import {
   settleTransaction,
   voidTransaction,
 } from "../nuvei/client";
-import { getOrder, saveOrder } from "../store/orderStore";
+import { getOrder, OrderRecord, saveOrder } from "../store/orderStore";
 import { publish } from "../events";
 
 export const financialOpsRouter = Router();
 
-// A payment must have been submitted before any financial op is meaningful — that's the
-// same point at which amount/currency get set on the order (see routes/checkout.ts), so
-// this narrows all three from optional to required in one place instead of `!`-asserting
-// at every call site.
-type PaidOrder = ReturnType<typeof getOrder> & {
-  amount: string;
-  currency: string;
-  paymentTransactionId: string;
-};
-
-type OrderCheck = { ok: true; order: PaidOrder } | { ok: false; status: number; body: { error: string } };
-
-function requirePaymentTransaction(orderId: string): OrderCheck {
+function requireOrder(orderId: string): { ok: true; order: OrderRecord } | { ok: false; status: number; body: { error: string } } {
   const order = getOrder(orderId);
   if (!order) return { ok: false, status: 404, body: { error: "Order not found" } };
-  if (!order.paymentTransactionId || !order.amount || !order.currency) {
-    return { ok: false, status: 400, body: { error: "No payment has been submitted for this order yet" } };
+  return { ok: true, order };
+}
+
+// Capture/void/refund don't strictly need a payment made *in this session* — Nuvei's
+// settle/void/refund endpoints only need a transactionId + currency (+ authCode for
+// capture), not a sessionToken. This lets Step 8 be used standalone against any known
+// transaction (e.g. one created outside this tool) by manually entering an override,
+// falling back to the current session's own payment when no override is given.
+type ResolvedOp =
+  | { ok: true; transactionId: string; currency: string }
+  | { ok: false; status: number; body: { error: string } };
+
+function resolveTransactionAndCurrency(order: OrderRecord, body: { transactionId?: string; currency?: string }): ResolvedOp {
+  const transactionId = body.transactionId?.trim() || order.paymentTransactionId;
+  const currency = body.currency?.trim() || order.currency;
+  if (!transactionId || !currency) {
+    return {
+      ok: false,
+      status: 400,
+      body: { error: "transactionId and currency are required — either from a completed payment in this session, or entered manually" },
+    };
   }
-  return { ok: true, order: order as PaidOrder };
+  return { ok: true, transactionId, currency };
 }
 
 financialOpsRouter.get("/orders/:orderId/payment-status", async (req, res) => {
@@ -57,11 +64,14 @@ financialOpsRouter.get("/orders/:orderId/payment-status", async (req, res) => {
 });
 
 financialOpsRouter.get("/orders/:orderId/transaction-details", async (req, res) => {
-  const check = requirePaymentTransaction(req.params.orderId);
+  const check = requireOrder(req.params.orderId);
   if (!check.ok) return res.status(check.status).json(check.body);
   const { order } = check;
 
-  const transactionId = (req.query.transactionId as string | undefined) ?? order.paymentTransactionId!;
+  const transactionId = (req.query.transactionId as string | undefined)?.trim() || order.paymentTransactionId;
+  if (!transactionId) {
+    return res.status(400).json({ error: "transactionId is required — either from a completed payment or passed as ?transactionId=" });
+  }
   const clientRequestId = randomUUID();
 
   publish({ type: "transaction_details_request", orderId: order.orderId, data: { transactionId } });
@@ -76,24 +86,39 @@ financialOpsRouter.get("/orders/:orderId/transaction-details", async (req, res) 
 });
 
 financialOpsRouter.post("/orders/:orderId/capture", async (req, res) => {
-  const check = requirePaymentTransaction(req.params.orderId);
+  const check = requireOrder(req.params.orderId);
   if (!check.ok) return res.status(check.status).json(check.body);
   const { order } = check;
 
-  if (!order.paymentAuthCode) {
-    return res.status(400).json({ error: "No authCode on file — capture only applies to Auth-type transactions" });
+  const { amount, transactionId: transactionIdOverride, authCode: authCodeOverride, currency: currencyOverride } =
+    req.body as { amount?: string; transactionId?: string; authCode?: string; currency?: string };
+
+  const resolved = resolveTransactionAndCurrency(order, { transactionId: transactionIdOverride, currency: currencyOverride });
+  if (!resolved.ok) return res.status(resolved.status).json(resolved.body);
+
+  const authCode = authCodeOverride?.trim() || order.paymentAuthCode;
+  if (!authCode) {
+    return res.status(400).json({
+      error: "authCode is required — either from a completed Auth-type payment in this session, or entered manually",
+    });
   }
 
-  const { amount } = req.body as { amount?: string };
   const captureAmount = amount || order.amount;
+  if (!captureAmount) {
+    return res.status(400).json({ error: "amount is required" });
+  }
   const clientRequestId = randomUUID();
 
-  publish({ type: "capture_request", orderId: order.orderId, data: { amount: captureAmount } });
+  publish({
+    type: "capture_request",
+    orderId: order.orderId,
+    data: { transactionId: resolved.transactionId, authCode, amount: captureAmount, currency: resolved.currency },
+  });
   const result = await settleTransaction({
-    relatedTransactionId: order.paymentTransactionId!,
-    authCode: order.paymentAuthCode,
+    relatedTransactionId: resolved.transactionId,
+    authCode,
     amount: captureAmount,
-    currency: order.currency,
+    currency: resolved.currency,
     clientUniqueId: randomUUID(),
     clientRequestId,
   });
@@ -118,15 +143,22 @@ financialOpsRouter.post("/orders/:orderId/capture", async (req, res) => {
 });
 
 financialOpsRouter.post("/orders/:orderId/void", async (req, res) => {
-  const check = requirePaymentTransaction(req.params.orderId);
+  const check = requireOrder(req.params.orderId);
   if (!check.ok) return res.status(check.status).json(check.body);
   const { order } = check;
 
+  const { transactionId: transactionIdOverride, currency: currencyOverride } = req.body as {
+    transactionId?: string;
+    currency?: string;
+  };
+  const resolved = resolveTransactionAndCurrency(order, { transactionId: transactionIdOverride, currency: currencyOverride });
+  if (!resolved.ok) return res.status(resolved.status).json(resolved.body);
+
   const clientRequestId = randomUUID();
-  publish({ type: "void_request", orderId: order.orderId, data: { transactionId: order.paymentTransactionId } });
+  publish({ type: "void_request", orderId: order.orderId, data: { transactionId: resolved.transactionId } });
   const result = await voidTransaction({
-    relatedTransactionId: order.paymentTransactionId!,
-    currency: order.currency,
+    relatedTransactionId: resolved.transactionId,
+    currency: resolved.currency,
     clientUniqueId: randomUUID(),
     clientRequestId,
   });
@@ -151,19 +183,33 @@ financialOpsRouter.post("/orders/:orderId/void", async (req, res) => {
 });
 
 financialOpsRouter.post("/orders/:orderId/refund", async (req, res) => {
-  const check = requirePaymentTransaction(req.params.orderId);
+  const check = requireOrder(req.params.orderId);
   if (!check.ok) return res.status(check.status).json(check.body);
   const { order } = check;
 
-  const { amount } = req.body as { amount?: string };
+  const { amount, transactionId: transactionIdOverride, currency: currencyOverride } = req.body as {
+    amount?: string;
+    transactionId?: string;
+    currency?: string;
+  };
+  const resolved = resolveTransactionAndCurrency(order, { transactionId: transactionIdOverride, currency: currencyOverride });
+  if (!resolved.ok) return res.status(resolved.status).json(resolved.body);
+
   const refundAmount = amount || order.amount;
+  if (!refundAmount) {
+    return res.status(400).json({ error: "amount is required" });
+  }
   const clientRequestId = randomUUID();
 
-  publish({ type: "refund_request", orderId: order.orderId, data: { amount: refundAmount } });
+  publish({
+    type: "refund_request",
+    orderId: order.orderId,
+    data: { transactionId: resolved.transactionId, amount: refundAmount, currency: resolved.currency },
+  });
   const result = await refundTransaction({
-    relatedTransactionId: order.paymentTransactionId!,
+    relatedTransactionId: resolved.transactionId,
     amount: refundAmount,
-    currency: order.currency,
+    currency: resolved.currency,
     clientUniqueId: randomUUID(),
     clientRequestId,
   });

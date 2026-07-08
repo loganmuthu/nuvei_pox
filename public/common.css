@@ -7,37 +7,94 @@ body {
   color: #1a1a1a;
 }
 header {
-  padding: 20px 28px;
+  padding: 20px 28px 0;
   background: #111827;
   color: #fff;
 }
-header h1 { margin: 0 0 6px; font-size: 20px; }
+header h1 { margin: 0 0 14px; font-size: 22px; }
 header p { margin: 0; color: #c7cbd3; font-size: 13px; line-height: 1.5; max-width: 900px; }
+header > p { padding: 16px 0 20px; }
+
+.menu-description-active {
+  padding: 16px 0;
+  border-top: 1px solid #1f2937;
+}
+.menu-description-active h3 { margin: 0 0 4px; font-size: 14px; color: #fff; }
+.menu-description-active p { margin: 0; color: #9aa5b1; font-size: 12px; line-height: 1.5; max-width: 700px; }
+
+/* Sticky bar: lifecycle progress + live session summary. Lives outside <header> (which
+   scrolls away normally) so progress stays visible for the entire page, not just the
+   first viewport — this is what the plain in-header lifecycle bar used to fail at. */
+.sticky-bar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: #0b1020;
+  border-bottom: 1px solid #1f2937;
+  padding: 10px 28px;
+}
+.lifecycle {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.lifecycle-label { font-size: 11px; color: #9aa5b1; text-transform: uppercase; letter-spacing: 0.04em; margin-right: 8px; }
+.lifecycle-node {
+  background: #1f2937; color: #d6deeb; padding: 5px 12px; border-radius: 20px;
+  font-size: 12px; font-weight: 600; white-space: nowrap;
+}
+.lifecycle-node.active { background: #2563eb; color: #fff; }
+.lifecycle-arrow { color: #4b5563; font-size: 14px; }
+
+.session-summary {
+  display: flex; flex-wrap: wrap; gap: 16px; margin-top: 8px; font-size: 12px; color: #9aa5b1;
+}
+.session-summary strong { color: #d6deeb; font-weight: 600; }
+
+.link-btn {
+  color: #93c5fd; font-size: 12px; text-decoration: underline; cursor: pointer; background: none; border: none; padding: 0;
+}
+.link-btn:hover { color: #bfdbfe; }
 .layout {
   display: grid;
   grid-template-columns: 1fr 360px;
   gap: 16px;
   padding: 16px;
-  align-items: start;
 }
 .card {
   background: #fff;
   border: 1px solid #e3e5e9;
+  border-left: 3px solid #e3e5e9;
   border-radius: 8px;
   padding: 16px;
   margin-bottom: 16px;
 }
+/* "You are here" — the one mandatory step you'd naturally do next. Not applied to the
+   later on-demand steps (verify/DMN/lookup/post-payment), which aren't strictly ordered. */
+.card.step-active { border-left-color: #2563eb; box-shadow: 0 0 0 1px #2563eb inset; }
+.card.step-done { border-left-color: #22c55e; }
+.card.step-done h2 { color: #6b7280; }
 .card h2 { margin: 0 0 4px; font-size: 15px; color: #111827; }
 .card h2 .step-num {
   display: inline-block; background: #2563eb; color: #fff; font-size: 11px; font-weight: 700;
   padding: 2px 8px; border-radius: 10px; margin-right: 8px;
 }
+.card.step-done h2 .step-num { background: #22c55e; }
 .card .hint { font-size: 12px; color: #6b7280; margin: 0 0 12px; }
 .step-body { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
 .step-io { background: #0b1020; border-radius: 6px; padding: 10px; align-self: start; }
-.step-io h3 { margin: 0 0 4px; font-size: 11px; color: #9aa5b1; text-transform: uppercase; letter-spacing: 0.04em; }
+.step-io h3 {
+  margin: 0 0 4px; font-size: 11px; color: #9aa5b1; text-transform: uppercase; letter-spacing: 0.04em;
+  display: flex; align-items: center; justify-content: space-between;
+}
 .step-io .io-block { margin-bottom: 10px; }
 .step-io .io-block:last-child { margin-bottom: 0; }
+.copy-btn {
+  margin: 0; padding: 1px 6px; font-size: 10px; font-weight: 400; text-transform: none; letter-spacing: normal;
+  background: #1f2937; color: #9aa5b1; border-radius: 3px; border: none; cursor: pointer;
+}
+.copy-btn:hover { background: #374151; color: #fff; }
 .step-io pre {
   margin: 0; font-family: ui-monospace, monospace; font-size: 11px; color: #d6deeb;
   background: #111827; padding: 8px; border-radius: 4px; max-height: 220px; overflow: auto;
@@ -84,6 +141,12 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .log-panel-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .log-panel-header h2 { margin: 0; }
 .log-panel-header button { margin: 0; padding: 5px 12px; }
+.dmn-only-toggle {
+  display: flex; align-items: center; gap: 4px; margin: 0; font-size: 11px; color: #6b7280;
+  font-weight: 400; white-space: nowrap; cursor: pointer;
+}
+.dmn-only-toggle input { width: auto; margin: 0; }
+.log-stream.dmn-only .log-entry:not([data-tag="dmn"]) { display: none; }
 .sse-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #ef4444; margin-right: 6px; }
 .sse-dot.live { background: #22c55e; animation: sse-blink 1.2s ease-in-out infinite; }
 @keyframes sse-blink {

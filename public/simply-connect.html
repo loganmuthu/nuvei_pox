@@ -2,42 +2,56 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>Nuvei Simply Connect — Integration Test Console</title>
+<title>Nuvei &amp; Apexx Demo Integration — Simply Connect</title>
 <link rel="stylesheet" href="common.css" />
 <link rel="stylesheet" href="nav.css" />
-<script src="https://cdn.safecharge.com/safecharge_resources/v1/checkout/checkout.js"></script>
+<script src="https://cdn.safecharge.com/safecharge_resources/v1/checkout/checkout.js" defer></script>
 </head>
 <body>
 
-<nav class="flavor-nav">
-  <a href="test.html">REST API</a>
-  <a href="hpp.html">Hosted Payment Page (HPP)</a>
-  <a href="simply-connect.html" class="active">Simply Connect</a>
-</nav>
-
 <header>
-  <h1>Nuvei Simply Connect — Integration Test Console</h1>
-  <p>
-    Simply Connect is a hybrid flow: a lightweight embedded checkout UI rendered client-side, backed by a
-    server-side session. (1) Your backend calls <strong>/openOrder</strong> (this flavor's documented session
-    call — not <code>/getSessionToken</code>, which is specific to the REST APM flow elsewhere in this
-    console) to get a <code>sessionToken</code>, since <code>/openOrder</code> requires the merchant secret key
-    and must never run in the browser, (2) the frontend loads <code>checkout.js</code> and calls
-    <strong>checkout()</strong> with that token to render the embedded payment form, (3) the widget's
-    <code>onResult</code> callback returns a client-side result which must be treated as untrusted, and (4) the
-    backend cross-checks via <strong>/getPaymentStatus</strong> or the same shared <strong>DMN</strong> webhook.
-  </p>
+  <h1>Nuvei &amp; Apexx Demo Integration</h1>
+  <nav class="flavor-nav">
+    <a href="test.html">REST API</a>
+    <a href="hpp.html">Hosted Payment Page (HPP)</a>
+    <a href="simply-connect.html" class="active">Simply Connect</a>
+  </nav>
+  <div class="menu-description-active">
+    <h3>Simply Connect</h3>
+    <p>A hybrid flow — the backend opens a session, then an embedded checkout() widget renders client-side using that token, verified server-side afterward.</p>
+  </div>
 </header>
+
+<div class="sticky-bar">
+  <div class="lifecycle">
+    <span class="lifecycle-label">Lifecycle:</span>
+    <span class="lifecycle-node" id="life-session">Session (openOrder)</span>
+    <span class="lifecycle-arrow">→</span>
+    <span class="lifecycle-node" id="life-checkout">checkout() widget</span>
+    <span class="lifecycle-arrow">→</span>
+    <span class="lifecycle-node" id="life-result">onResult (untrusted)</span>
+    <span class="lifecycle-arrow">→</span>
+    <span class="lifecycle-node" id="life-verify">Verify (getPaymentStatus)</span>
+    <span class="lifecycle-arrow">→</span>
+    <span class="lifecycle-node" id="life-dmn">DMN</span>
+    <a href="#" id="resetRunBtn" class="link-btn" style="margin-left:auto;">↺ Reset run</a>
+  </div>
+  <div class="session-summary">
+    <span>Amount: <strong id="summaryAmount">—</strong></span>
+    <span>Session: <strong id="summarySession">none</strong></span>
+    <span>Status: <span id="summaryStatus" class="status-pill status-PENDING">—</span></span>
+  </div>
+</div>
 
 <div class="layout">
   <div>
 
-    <div class="card">
+    <div class="card" data-step="1">
       <h2><span class="step-num">Step 1</span>Backend: open order &amp; get session token</h2>
       <p class="hint">
-        Calls <code>/openOrder</code> server-side — <code>amount</code>/<code>currency</code> are required here
-        because they're baked into the checksum, same formula as the REST API's confirmed <code>/openOrder</code>
-        pattern. The response's <code>sessionToken</code> (not the secret key) is the only thing sent to the browser.
+        Calls <code>/openOrder</code> server-side — this flavor's own documented session call, not
+        <code>/getSessionToken</code> (specific to the REST APM flow). Only the resulting <code>sessionToken</code>,
+        never the secret key, is sent to the browser.
       </p>
       <div class="step-body">
         <div>
@@ -55,13 +69,12 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" data-step="2">
       <h2><span class="step-num">Step 2</span>Frontend: render checkout()</h2>
       <p class="hint">
-        Loads Nuvei's <code>checkout.js</code> and calls <strong>checkout()</strong> directly in the browser with
-        the <code>sessionToken</code> from Step 1 — the exact call a real integration makes. Against placeholder
-        credentials this will render an error from Nuvei's widget rather than a working form, but the SDK
-        invocation itself is real and would work unmodified once real credentials are in <code>.env</code>.
+        Loads Nuvei's <code>checkout.js</code> and calls <strong>checkout()</strong> directly in the browser —
+        the exact call a real integration makes. Against placeholder credentials this renders an error from
+        Nuvei's widget, but the SDK invocation itself is real.
       </p>
       <div class="step-body">
         <div>
@@ -84,12 +97,11 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" data-step="3">
       <h2><span class="step-num">Step 3</span>Backend: verify the result</h2>
       <p class="hint">
-        Never trust <code>onResult</code> alone — cross-check server-side via <strong>/getPaymentStatus</strong>
-        (works only while the session is open; don't poll it repeatedly) or wait for the shared
-        <strong>DMN</strong> webhook, which is recommended for async APM transactions in particular.
+        Never trust <code>onResult</code> alone — cross-check via <strong>/getPaymentStatus</strong> (session must
+        still be open; don't poll repeatedly) or wait for the shared <strong>DMN</strong>.
       </p>
       <div class="step-body">
         <div>
@@ -109,7 +121,8 @@
     <div class="card log-panel">
       <div class="log-panel-header">
         <h2><span id="sseDot" class="sse-dot"></span>Live event log</h2>
-        <button id="clearLogBtn" class="secondary">Clear</button>
+        <label class="dmn-only-toggle"><input type="checkbox" id="dmnOnlyToggle" /> DMN only</label>
+        <a href="#" id="clearLogBtn" class="link-btn">Clear</a>
       </div>
       <p class="hint">Full timeline across all steps — including real-time DMN — over SSE.</p>
       <div id="logStream" class="log-stream"></div>
@@ -125,11 +138,16 @@
   function appendLog(tag, label, data) {
     const entry = document.createElement("div");
     entry.className = "log-entry";
+    entry.dataset.tag = tag;
     const time = new Date().toLocaleTimeString();
     entry.innerHTML = `<span class="log-tag tag-${tag}">${tag}</span><strong>${time} — ${label}</strong><pre>${JSON.stringify(data, null, 2)}</pre>`;
     logStream.appendChild(entry);
     logStream.scrollTop = logStream.scrollHeight;
   }
+
+  document.getElementById("dmnOnlyToggle").addEventListener("change", (e) => {
+    logStream.classList.toggle("dmn-only", e.target.checked);
+  });
 
   function showIO(prefix, request, response) {
     const reqEl = document.getElementById(`${prefix}-req`);
@@ -139,10 +157,67 @@
   }
 
   function setStatus(status) {
-    const el = document.getElementById("scOrderStatus");
-    el.textContent = status;
-    el.className = "status-pill status-" + status;
+    ["scOrderStatus", "summaryStatus"].forEach((id) => {
+      const el = document.getElementById(id);
+      el.textContent = status;
+      el.className = "status-pill status-" + status;
+    });
   }
+
+  function markLifecycle(stage) {
+    document.getElementById(`life-${stage}`)?.classList.add("active");
+  }
+
+  function updateSummary() {
+    document.getElementById("summaryAmount").textContent =
+      `${document.getElementById("scAmount").value} ${document.getElementById("scCurrency").value}`;
+    document.getElementById("summarySession").textContent = orderId ? orderId.slice(0, 8) : "none";
+  }
+
+  document.getElementById("scAmount").addEventListener("input", updateSummary);
+  document.getElementById("scCurrency").addEventListener("input", updateSummary);
+
+  // "You are here" — Step 1 until a session exists, Step 2 until onResult fires, then Step 3.
+  function updateStepHighlight() {
+    document.querySelectorAll(".card[data-step]").forEach((c) => c.classList.remove("step-active", "step-done"));
+    const step = (n) => document.querySelector(`.card[data-step="${n}"]`);
+    if (!orderId) {
+      step(1)?.classList.add("step-active");
+      return;
+    }
+    step(1)?.classList.add("step-done");
+    if (!document.getElementById("life-result").classList.contains("active")) {
+      step(2)?.classList.add("step-active");
+    } else {
+      step(2)?.classList.add("step-done");
+      step(3)?.classList.add("step-active");
+    }
+  }
+
+  function resetRun() {
+    orderId = null;
+    sessionInfo = null;
+    document.getElementById("scSessionResult").textContent = "";
+    document.getElementById("scRenderResult").textContent = "";
+    document.getElementById("checkout").innerHTML = "";
+    document.getElementById("scRenderBtn").disabled = true;
+    document.getElementById("scVerifyBtn").disabled = true;
+    ["session", "checkout", "verify"].forEach((prefix) => {
+      document.getElementById(`${prefix}-req`).textContent = "—";
+      document.getElementById(`${prefix}-res`).textContent = "—";
+    });
+    setStatus("PENDING");
+    ["session", "checkout", "result", "verify", "dmn"].forEach((stage) =>
+      document.getElementById(`life-${stage}`)?.classList.remove("active")
+    );
+    updateSummary();
+    updateStepHighlight();
+  }
+
+  document.getElementById("resetRunBtn").addEventListener("click", (e) => {
+    e.preventDefault();
+    resetRun();
+  });
 
   document.getElementById("scSessionBtn").addEventListener("click", async () => {
     const reqBody = {
@@ -162,9 +237,12 @@
     if (res.ok) {
       orderId = data.orderId;
       sessionInfo = data;
-      document.getElementById("scSessionResult").textContent = "Session ready — internal orderId: " + orderId;
+      document.getElementById("scSessionResult").textContent = "Session ready — see summary bar above.";
       document.getElementById("scRenderBtn").disabled = false;
       setStatus("PENDING");
+      markLifecycle("session");
+      updateSummary();
+      updateStepHighlight();
     } else {
       document.getElementById("scSessionResult").textContent = "Error: " + data.error;
     }
@@ -189,10 +267,13 @@
         document.getElementById("scRenderResult").textContent =
           "onResult received — transactionStatus: " + (result && result.transactionStatus);
         document.getElementById("scVerifyBtn").disabled = false;
+        markLifecycle("result");
+        updateStepHighlight();
       },
     };
     showIO("checkout", params, { note: "Waiting for onResult…" });
     appendLog("client", "checkout() invoked", params);
+    markLifecycle("checkout");
     try {
       checkout(params);
       document.getElementById("scRenderResult").textContent = "checkout() invoked — widget rendering…";
@@ -209,9 +290,11 @@
     appendLog("client", "/status response", data);
     showIO("verify", { orderId }, data);
     if (data.transactionStatus) setStatus(data.transactionStatus);
+    if (res.ok) markLifecycle("verify");
   });
 
-  document.getElementById("clearLogBtn").addEventListener("click", () => {
+  document.getElementById("clearLogBtn").addEventListener("click", (e) => {
+    e.preventDefault();
     logStream.innerHTML = "";
   });
 
@@ -222,7 +305,20 @@
     const evt = JSON.parse(e.data);
     const tag = evt.type === "dmn_received" ? "dmn" : "server";
     appendLog(tag, evt.type, evt.data);
+    if (evt.type === "dmn_received") markLifecycle("dmn");
   };
+
+  document.querySelectorAll(".io-block h3").forEach((h3) => {
+    const pre = h3.nextElementSibling;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "copy-btn";
+    btn.textContent = "Copy";
+    btn.addEventListener("click", () => navigator.clipboard.writeText(pre.textContent));
+    h3.appendChild(btn);
+  });
+
+  updateStepHighlight();
 </script>
 </body>
 </html>

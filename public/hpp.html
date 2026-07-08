@@ -2,40 +2,51 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>Nuvei Hosted Payment Page (HPP) — Integration Test Console</title>
+<title>Nuvei &amp; Apexx Demo Integration — HPP</title>
 <link rel="stylesheet" href="common.css" />
 <link rel="stylesheet" href="nav.css" />
 </head>
 <body>
 
-<nav class="flavor-nav">
-  <a href="test.html">REST API</a>
-  <a href="hpp.html" class="active">Hosted Payment Page (HPP)</a>
-  <a href="simply-connect.html">Simply Connect</a>
-</nav>
-
 <header>
-  <h1>Nuvei Hosted Payment Page (HPP / Cashier) — Integration Test Console</h1>
-  <p>
-    HPP is the simplest Nuvei flavor: your backend signs a set of parameters and redirects the customer's
-    browser straight to Nuvei's hosted page (<code>/ppp/purchase.do</code>) — no session token, no client-side
-    SDK, minimal server logic. (1) Build a checksum-signed redirect URL server-side (the secret key must never
-    reach the browser), (2) redirect the customer there to enter payment details on Nuvei's page, (3) Nuvei
-    redirects back to your <code>successUrl</code>/<code>failureUrl</code>/<code>pendingUrl</code> with signed
-    output parameters, and (4) the same <strong>DMN</strong> webhook used by the other two flavors delivers the
-    final authoritative status.
-  </p>
+  <h1>Nuvei &amp; Apexx Demo Integration</h1>
+  <nav class="flavor-nav">
+    <a href="test.html">REST API</a>
+    <a href="hpp.html" class="active">Hosted Payment Page (HPP)</a>
+    <a href="simply-connect.html">Simply Connect</a>
+  </nav>
+  <div class="menu-description-active">
+    <h3>Hosted Payment Page (HPP)</h3>
+    <p>The fastest path — sign a redirect URL server-side and send the customer straight to Nuvei's hosted checkout page. Minimal server logic, no session token.</p>
+  </div>
 </header>
+
+<div class="sticky-bar">
+  <div class="lifecycle">
+    <span class="lifecycle-label">Lifecycle:</span>
+    <span class="lifecycle-node" id="life-build">Build redirect URL</span>
+    <span class="lifecycle-arrow">→</span>
+    <span class="lifecycle-node" id="life-redirect">Redirection</span>
+    <span class="lifecycle-arrow">→</span>
+    <span class="lifecycle-node" id="life-return">Return parameters</span>
+    <span class="lifecycle-arrow">→</span>
+    <span class="lifecycle-node" id="life-dmn">DMN</span>
+    <a href="#" id="resetRunBtn" class="link-btn" style="margin-left:auto;">↺ Reset run</a>
+  </div>
+  <div class="session-summary">
+    <span>Amount: <strong id="summaryAmount">—</strong></span>
+    <span>Redirect built: <strong id="summaryBuilt">no</strong></span>
+  </div>
+</div>
 
 <div class="layout">
   <div>
 
-    <div class="card">
+    <div class="card" data-step="1">
       <h2><span class="step-num">Step 1</span>Build the signed redirect URL</h2>
       <p class="hint">
-        Calls our backend, which computes the HPP checksum server-side — <strong>SHA-256(secretKey + all parameter
-        VALUES concatenated in submission order)</strong>. This is a different formula from the REST API's
-        field-based checksum; HPP is Nuvei's older query-string/form flow.
+        Computed server-side: <strong>SHA-256(secretKey + all parameter VALUES concatenated in submission
+        order)</strong> — a different formula from the REST API's field-based checksum.
       </p>
       <div class="step-body">
         <div>
@@ -57,29 +68,26 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" data-step="2">
       <h2><span class="step-num">Step 2</span>Redirect to Nuvei's hosted page</h2>
       <p class="hint">
-        In production this is a real browser redirect (or full-page/IFrame load) to
-        <code>https://ppp-test.safecharge.com/ppp/purchase.do?...&amp;checksum=...</code>. Against placeholder
-        credentials this will show Nuvei's own error page rather than a real checkout — but it confirms the
-        signed URL construction is correct.
+        Against placeholder credentials this shows Nuvei's own error page rather than a real checkout — but
+        confirms the signed URL construction is correct.
       </p>
       <div id="redirectLinkArea" class="status-line">Build the URL in Step 1 first.</div>
     </div>
 
-    <div class="card">
+    <div class="card" data-step="3">
       <h2><span class="step-num">Step 3</span>Return / output parameters</h2>
       <p class="hint">
-        Nuvei can only redirect a real customer's browser to a publicly reachable
-        <code>successUrl</code>/<code>failureUrl</code>/<code>pendingUrl</code> — unreachable from a local dev
-        server, same limitation as DMNs. Use the simulate buttons to generate a correctly-signed return payload
-        and validate it through the real checksum-verification code path.
+        Nuvei can only redirect a real customer's browser to a publicly reachable return URL — unreachable from
+        a local dev server. Use the simulate buttons to generate a correctly-signed return payload and validate
+        it through the real checksum-verification code path.
       </p>
       <div class="step-body">
         <div>
           <button id="simulateHppApprove" class="secondary">Simulate return: APPROVED</button>
-          <button id="simulateHppDecline" class="danger">Simulate return: DECLINED</button>
+          <button id="simulateHppDecline" class="secondary">Simulate return: DECLINED</button>
           <div id="returnResult" class="status-line"></div>
         </div>
         <div class="step-io">
@@ -89,13 +97,11 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" data-step="4">
       <h2><span class="step-num">Step 4</span>DMN (shared with the other flavors)</h2>
       <p class="hint">
-        HPP's <code>notify_url</code> (built into the Step 1 request) points at the same
-        <code>/webhooks/nuvei/dmn</code> endpoint the REST API and Simply Connect flows use — DMN delivery is
-        flow-agnostic in Nuvei's architecture. Any DMN received while this page is open will appear live in the
-        event log on the right.
+        HPP's <code>notify_url</code> points at the same <code>/webhooks/nuvei/dmn</code> endpoint the other two
+        flavors use — DMN delivery is flow-agnostic in Nuvei's architecture.
       </p>
       <div id="dmnNote" class="status-line">Waiting for a DMN…</div>
     </div>
@@ -106,7 +112,8 @@
     <div class="card log-panel">
       <div class="log-panel-header">
         <h2><span id="sseDot" class="sse-dot"></span>Live event log</h2>
-        <button id="clearLogBtn" class="secondary">Clear</button>
+        <label class="dmn-only-toggle"><input type="checkbox" id="dmnOnlyToggle" /> DMN only</label>
+        <a href="#" id="clearLogBtn" class="link-btn">Clear</a>
       </div>
       <p class="hint">Full timeline across all steps, in real time over SSE.</p>
       <div id="logStream" class="log-stream"></div>
@@ -119,11 +126,16 @@
   function appendLog(tag, label, data) {
     const entry = document.createElement("div");
     entry.className = "log-entry";
+    entry.dataset.tag = tag;
     const time = new Date().toLocaleTimeString();
     entry.innerHTML = `<span class="log-tag tag-${tag}">${tag}</span><strong>${time} — ${label}</strong><pre>${JSON.stringify(data, null, 2)}</pre>`;
     logStream.appendChild(entry);
     logStream.scrollTop = logStream.scrollHeight;
   }
+
+  document.getElementById("dmnOnlyToggle").addEventListener("change", (e) => {
+    logStream.classList.toggle("dmn-only", e.target.checked);
+  });
 
   function showIO(prefix, request, response) {
     const reqEl = document.getElementById(`${prefix}-req`);
@@ -133,6 +145,57 @@
   }
 
   let lastBuilt = null;
+
+  function markLifecycle(stage) {
+    document.getElementById(`life-${stage}`)?.classList.add("active");
+  }
+
+  function updateSummary() {
+    document.getElementById("summaryAmount").textContent = lastBuilt
+      ? `${lastBuilt.totalAmount} ${lastBuilt.currency}`
+      : "—";
+    document.getElementById("summaryBuilt").textContent = lastBuilt ? "yes" : "no";
+  }
+
+  // "You are here" — Step 1 until a URL is built, then Step 2 until the redirect link is
+  // clicked, then Step 3 (return simulation is on-demand from that point).
+  function updateStepHighlight() {
+    document.querySelectorAll(".card[data-step]").forEach((c) => c.classList.remove("step-active", "step-done"));
+    const step = (n) => document.querySelector(`.card[data-step="${n}"]`);
+    if (!lastBuilt) {
+      step(1)?.classList.add("step-active");
+      return;
+    }
+    step(1)?.classList.add("step-done");
+    if (!document.getElementById("life-redirect").classList.contains("active")) {
+      step(2)?.classList.add("step-active");
+    } else {
+      step(2)?.classList.add("step-done");
+      step(3)?.classList.add("step-active");
+    }
+  }
+
+  function resetRun() {
+    lastBuilt = null;
+    document.getElementById("buildResult").textContent = "";
+    document.getElementById("redirectLinkArea").textContent = "Build the URL in Step 1 first.";
+    document.getElementById("returnResult").textContent = "";
+    document.getElementById("dmnNote").textContent = "Waiting for a DMN…";
+    ["build", "return"].forEach((prefix) => {
+      document.getElementById(`${prefix}-req`).textContent = "—";
+      document.getElementById(`${prefix}-res`).textContent = "—";
+    });
+    ["build", "redirect", "return", "dmn"].forEach((stage) =>
+      document.getElementById(`life-${stage}`)?.classList.remove("active")
+    );
+    updateSummary();
+    updateStepHighlight();
+  }
+
+  document.getElementById("resetRunBtn").addEventListener("click", (e) => {
+    e.preventDefault();
+    resetRun();
+  });
 
   document.getElementById("buildUrlBtn").addEventListener("click", async () => {
     const reqBody = {
@@ -156,7 +219,14 @@
     if (res.ok) {
       lastBuilt = { ...reqBody };
       resultEl.textContent = "Redirect URL built and signed.";
-      linkArea.innerHTML = `<a class="redirect-link" href="${data.redirectUrl}" target="_blank">Open Nuvei Hosted Payment Page ↗</a>`;
+      markLifecycle("build");
+      linkArea.innerHTML = `<a class="redirect-link" href="${data.redirectUrl}" target="_blank" id="hppRedirectLink">Open Nuvei Hosted Payment Page ↗</a>`;
+      document.getElementById("hppRedirectLink").addEventListener("click", () => {
+        markLifecycle("redirect");
+        updateStepHighlight();
+      });
+      updateSummary();
+      updateStepHighlight();
     } else {
       resultEl.textContent = "Error: " + data.error;
     }
@@ -183,9 +253,11 @@
     document.getElementById("returnResult").textContent = res.ok
       ? "Return simulated — checksum valid: " + data.validChecksum
       : "Error: " + data.error;
+    if (res.ok) markLifecycle("return");
   }
 
-  document.getElementById("clearLogBtn").addEventListener("click", () => {
+  document.getElementById("clearLogBtn").addEventListener("click", (e) => {
+    e.preventDefault();
     logStream.innerHTML = "";
   });
 
@@ -198,8 +270,21 @@
     appendLog(tag, evt.type, evt.data);
     if (evt.type === "dmn_received") {
       document.getElementById("dmnNote").textContent = "DMN received — see log for details.";
+      markLifecycle("dmn");
     }
   };
+
+  document.querySelectorAll(".io-block h3").forEach((h3) => {
+    const pre = h3.nextElementSibling;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "copy-btn";
+    btn.textContent = "Copy";
+    btn.addEventListener("click", () => navigator.clipboard.writeText(pre.textContent));
+    h3.appendChild(btn);
+  });
+
+  updateStepHighlight();
 </script>
 </body>
 </html>

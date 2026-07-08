@@ -2,44 +2,87 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>Nuvei APM REST API — Integration Test Console</title>
+<title>Nuvei &amp; Apexx Demo Integration — REST API</title>
 <link rel="stylesheet" href="common.css" />
 <link rel="stylesheet" href="nav.css" />
 </head>
 <body>
 
-<nav class="flavor-nav">
-  <a href="test.html" class="active">REST API</a>
-  <a href="hpp.html">Hosted Payment Page (HPP)</a>
-  <a href="simply-connect.html">Simply Connect</a>
-</nav>
-
 <header>
-  <h1>Nuvei APM REST API — Integration Test Console</h1>
-  <p>
-    Each step below fires one specific Nuvei call and shows the exact request/response next to it.
-    Sequence: (1) <strong>/getSessionToken</strong> authenticates and returns a short-lived
-    <code>sessionToken</code> — no order exists yet — (2) pick an APM and fill its fields,
-    (3) <strong>/payment</strong> submits the charge (immediate result for direct-flow APMs like BLIK, or a
-    <code>redirectUrl</code> for redirect-flow APMs), (4) the async <strong>DMN</strong> webhook delivers the
-    final authoritative status, (5) optionally cross-check on demand with <strong>/getPaymentStatus</strong> or
-    <strong>/getTransactionDetails</strong>, and (6) manage the money afterward with
-    <strong>/settleTransaction</strong> (capture), <strong>/voidTransaction</strong>, or
-    <strong>/refundTransaction</strong>.
-  </p>
+  <h1>Nuvei &amp; Apexx Demo Integration</h1>
+  <nav class="flavor-nav">
+    <a href="test.html" class="active">REST API</a>
+    <a href="hpp.html">Hosted Payment Page (HPP)</a>
+    <a href="simply-connect.html">Simply Connect</a>
+  </nav>
+  <div class="menu-description-active">
+    <h3>REST API</h3>
+    <p>Full server-to-server control — your backend calls Nuvei directly: getSessionToken → payment → getPaymentStatus/getTransactionDetails → capture/void/refund. No client-side SDK.</p>
+  </div>
 </header>
+
+<div class="sticky-bar">
+  <div class="lifecycle">
+    <span class="lifecycle-label">Lifecycle:</span>
+    <span class="lifecycle-node" id="life-session">Session</span>
+    <span class="lifecycle-arrow">→</span>
+    <span class="lifecycle-node" id="life-payment">Payment</span>
+    <span class="lifecycle-arrow">→</span>
+    <span class="lifecycle-node" id="life-redirect">Redirection</span>
+    <span class="lifecycle-arrow">→</span>
+    <span class="lifecycle-node" id="life-status">Payment Status</span>
+    <span class="lifecycle-arrow">→</span>
+    <span class="lifecycle-node" id="life-dmn">DMN</span>
+    <span class="lifecycle-arrow">→</span>
+    <span class="lifecycle-node" id="life-details">Get Transaction Details</span>
+    <a href="#" id="resetRunBtn" class="link-btn" style="margin-left:auto;">↺ Reset run</a>
+  </div>
+  <div class="session-summary">
+    <span>APM: <strong id="summaryApm">—</strong></span>
+    <span>Amount: <strong id="summaryAmount">—</strong></span>
+    <span>Session: <strong id="summarySession">none</strong></span>
+    <span>Status: <span id="summaryStatus" class="status-pill status-PENDING">—</span></span>
+  </div>
+</div>
 
 <div class="layout">
   <div>
 
-    <div class="card">
-      <h2><span class="step-num">Step 1</span>Get session token</h2>
+    <div class="card" data-step="1">
+      <h2><span class="step-num">Step 1</span>Select APM &amp; amount</h2>
       <p class="hint">
-        Calls <code>/getSessionToken</code> to authenticate and obtain a <code>sessionToken</code> (valid ~10 minutes).
-        Takes no amount/currency at all — only <code>merchantId</code>, <code>merchantSiteId</code>, and
-        <code>merchantSecretKey</code>, all read server-side from <code>.env</code>, plus a generated
-        <code>clientRequestId</code>. Amount/currency are collected later, in Step 3, since that's the only
-        call whose checksum actually uses them.
+        Everything here — including the collapsed customer details below — is sent together as the Step 3
+        <code>/payment</code> request.
+      </p>
+      <div>
+        <label>APM</label>
+        <select id="apmSelect"></select>
+        <div id="apmDetail" class="apm-detail" style="display:none;"></div>
+        <div class="row" style="margin-top:12px;">
+          <div><label>Amount</label><input id="amount" value="10.00" /></div>
+          <div><label>Currency</label><input id="currency" value="EUR" /></div>
+        </div>
+        <div id="apmFields"></div>
+        <details id="customerDetails" style="margin-top:12px;">
+          <summary style="cursor:pointer;font-size:12px;color:#374151;">Customer &amp; advanced details</summary>
+          <div class="row" style="margin-top:8px;">
+            <div><label>First name</label><input id="firstName" value="Jane" /></div>
+            <div><label>Last name</label><input id="lastName" value="Doe" /></div>
+          </div>
+          <div class="row">
+            <div><label>Email</label><input id="email" value="jane.doe@example.com" /></div>
+            <div><label>Country</label><input id="country" value="NL" /></div>
+          </div>
+          <div id="commonExtraFields"></div>
+        </details>
+      </div>
+    </div>
+
+    <div class="card" data-step="2">
+      <h2><span class="step-num">Step 2</span>Get session token</h2>
+      <p class="hint">
+        Authenticates using only <code>.env</code> credentials (valid ~10 minutes) — no amount/currency here;
+        those are only used later in Step 3's checksum.
       </p>
       <div class="step-body">
         <div>
@@ -53,48 +96,16 @@
       </div>
     </div>
 
-    <div class="card">
-      <h2><span class="step-num">Step 2</span>Select APM, customer details &amp; amount</h2>
-      <p class="hint">
-        Choosing an APM loads its description, flow type, and mandatory fields. Everything collected here
-        (including amount/currency) is sent together as the Step 3 <code>/payment</code> request.
-      </p>
-      <div>
-        <label>APM</label>
-        <select id="apmSelect"></select>
-        <div id="apmDetail" class="apm-detail" style="display:none;"></div>
-        <div class="row" style="margin-top:12px;">
-          <div><label>Amount</label><input id="amount" value="10.00" /></div>
-          <div><label>Currency</label><input id="currency" value="EUR" /></div>
-        </div>
-        <div class="row">
-          <div><label>First name</label><input id="firstName" value="Jane" /></div>
-          <div><label>Last name</label><input id="lastName" value="Doe" /></div>
-        </div>
-        <div class="row">
-          <div><label>Email</label><input id="email" value="jane.doe@example.com" /></div>
-          <div><label>Country</label><input id="country" value="NL" /></div>
-        </div>
-        <div id="commonExtraFields"></div>
-        <div id="apmFields"></div>
-      </div>
-    </div>
-
-    <div class="card">
+    <div class="card" data-step="3">
       <h2><span class="step-num">Step 3</span>Initiate payment</h2>
       <p class="hint">
-        Calls <code>/payment</code> with <code>paymentOption.alternativePaymentMethod</code>, passing the
-        <code>sessionToken</code> obtained in Step 1 and the amount/currency/customer details entered in Step 2 —
-        this is the request whose checksum actually includes <code>amount</code>/<code>currency</code> (see §1.3 of the
-        solution design doc). Redirect-flow APMs return a <code>redirectUrl</code> here instead of an immediate
-        APPROVED/DECLINED.
+        Calls <code>/payment</code> with the Step 2 <code>sessionToken</code> and the Step 1 details. Redirect-flow
+        APMs return a <code>redirectUrl</code> here instead of an immediate APPROVED/DECLINED — see Step 4.
       </p>
       <div class="step-body">
         <div>
           <button id="payBtn" disabled>Initiate payment</button>
           <div id="payResult" class="status-line"></div>
-          <button id="redirectBtn" class="secondary" disabled>Go to redirect page</button>
-          <div id="redirectArea" class="status-line">—</div>
         </div>
         <div class="step-io">
           <div class="io-block"><h3>Request → Nuvei (/payment)</h3><pre id="pay-req">—</pre></div>
@@ -103,17 +114,42 @@
       </div>
     </div>
 
-    <div class="card">
-      <h2><span class="step-num">Step 4</span>DMN &amp; order status</h2>
+    <div class="card" data-step="4">
+      <h2><span class="step-num">Step 4</span>Redirection</h2>
+      <p class="hint">Opens the Step 3 <code>redirectUrl</code> in a new tab so this console stays open.</p>
+      <button id="redirectBtn" class="secondary" disabled>Go to redirect page</button>
+      <div id="redirectArea" class="status-line">—</div>
+    </div>
+
+    <div class="card" data-step="5">
+      <h2><span class="step-num">Step 5</span>Payment status</h2>
       <p class="hint">
-        Status updates here happen in real time when a DMN arrives. Since Nuvei can't reach this local server, use the
-        simulate buttons to fire a correctly-signed DMN through the same validation path a real webhook would use.
+        On-demand re-check, not a substitute for the DMN — only works while the Step 2 session is still open,
+        and shouldn't be polled repeatedly (risk of IP block).
+      </p>
+      <div class="step-body">
+        <div>
+          <button id="checkStatusBtn" class="secondary" disabled>Check /getPaymentStatus</button>
+          <div id="statusResult" class="status-line"></div>
+        </div>
+        <div class="step-io">
+          <div class="io-block"><h3>Request → Nuvei (/getPaymentStatus)</h3><pre id="status-req">—</pre></div>
+          <div class="io-block"><h3>Response ← Nuvei</h3><pre id="status-res">—</pre></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-step="6">
+      <h2><span class="step-num">Step 6</span>DMN &amp; order status</h2>
+      <p class="hint">
+        The authoritative source of final status. Since Nuvei can't reach this local server, use the simulate
+        buttons to fire a correctly-signed DMN through the same validation path a real webhook would use.
       </p>
       <div class="step-body">
         <div>
           <p>Order status: <span id="orderStatus" class="status-pill status-PENDING">—</span></p>
           <button id="simulateApprove" class="secondary">Simulate DMN: APPROVED</button>
-          <button id="simulateDecline" class="danger">Simulate DMN: DECLINED</button>
+          <button id="simulateDecline" class="secondary">Simulate DMN: DECLINED</button>
         </div>
         <div class="step-io">
           <div class="io-block"><h3>DMN sent (simulated) → server</h3><pre id="dmn-req">—</pre></div>
@@ -122,42 +158,44 @@
       </div>
     </div>
 
-    <div class="card">
-      <h2><span class="step-num">Step 5</span>Verify &amp; inspect</h2>
-      <p class="hint">
-        <code>/getPaymentStatus</code> only works while the session is open and shouldn't be polled repeatedly
-        (risk of IP block) — prefer the DMN for routine confirmation. <code>/getTransactionDetails</code> is the
-        durable lookup by <code>transactionId</code>, usable after the session has expired.
-      </p>
+    <div class="card" data-step="7">
+      <h2><span class="step-num">Step 7</span>Get transaction details</h2>
+      <p class="hint">The durable lookup by <code>transactionId</code> — unlike Step 5, works even after the session expires.</p>
       <div class="step-body">
         <div>
-          <button id="checkStatusBtn" class="secondary" disabled>Check /getPaymentStatus</button>
           <button id="txnDetailsBtn" class="secondary" disabled>Get /getTransactionDetails</button>
-          <div id="verifyResult" class="status-line"></div>
+          <div id="detailsResult" class="status-line"></div>
         </div>
         <div class="step-io">
-          <div class="io-block"><h3>Request → Nuvei (last verify call)</h3><pre id="verify-req">—</pre></div>
-          <div class="io-block"><h3>Response ← Nuvei</h3><pre id="verify-res">—</pre></div>
+          <div class="io-block"><h3>Request → Nuvei (/getTransactionDetails)</h3><pre id="details-req">—</pre></div>
+          <div class="io-block"><h3>Response ← Nuvei</h3><pre id="details-res">—</pre></div>
         </div>
       </div>
     </div>
 
-    <div class="card">
-      <h2><span class="step-num">Step 6</span>Post-payment: capture / void / refund</h2>
+    <div class="card" data-step="8">
+      <h2><span class="step-num">Step 8</span>Post-payment: capture / void / refund</h2>
       <p class="hint">
-        <strong>Capture</strong> (<code>/settleTransaction</code>) only applies if the original <code>/payment</code>
-        was an Auth-type transaction — most direct-settle APMs will reject it. <strong>Void</strong> only works in the
-        brief window before settlement. <strong>Refund</strong> applies to already-settled transactions and is the
-        most common post-payment op for APMs.
+        <strong>Capture</strong> only applies to Auth-type transactions. <strong>Void</strong>/<strong>Refund</strong>
+        are real, destructive operations against Nuvei's sandbox. Works standalone against any known transaction —
+        leave the overrides blank to use this session's own payment, or fill them in to test one created elsewhere.
       </p>
       <div class="step-body">
         <div>
+          <div class="row">
+            <div><label>Transaction ID override</label><input id="overrideTxnId" placeholder="blank = this session's payment" /></div>
+            <div><label>Currency override</label><input id="overrideCurrency" placeholder="blank = this session's currency" /></div>
+          </div>
+          <div class="row">
+            <div><label>Auth code override (capture only)</label><input id="overrideAuthCode" placeholder="blank = this session's payment" /></div>
+            <div></div>
+          </div>
           <div class="row">
             <div><label>Capture amount (blank = full)</label><input id="captureAmount" placeholder="10.00" /></div>
             <div><label>Refund amount (blank = full)</label><input id="refundAmount" placeholder="10.00" /></div>
           </div>
           <button id="captureBtn" disabled>Capture (/settleTransaction)</button>
-          <button id="voidBtn" class="secondary" disabled>Void (/voidTransaction)</button>
+          <button id="voidBtn" class="danger" disabled>Void (/voidTransaction)</button>
           <button id="refundBtn" class="danger" disabled>Refund (/refundTransaction)</button>
           <div id="opsResult" class="status-line"></div>
           <div id="opsLog" style="margin-top:10px;font-size:12px;"></div>
@@ -175,7 +213,8 @@
     <div class="card log-panel">
       <div class="log-panel-header">
         <h2><span id="sseDot" class="sse-dot"></span>Live event log</h2>
-        <button id="clearLogBtn" class="secondary">Clear</button>
+        <label class="dmn-only-toggle"><input type="checkbox" id="dmnOnlyToggle" /> DMN only</label>
+        <a href="#" id="clearLogBtn" class="link-btn">Clear</a>
       </div>
       <p class="hint">Full timeline across all steps — client requests, server responses, and DMN events, in real time over SSE.</p>
       <div id="logStream" class="log-stream"></div>
@@ -187,16 +226,22 @@
   let apms = [];
   let selectedApm = null;
   let orderId = null;
+  let paymentSucceeded = false;
 
   const logStream = document.getElementById("logStream");
   function appendLog(tag, label, data) {
     const entry = document.createElement("div");
     entry.className = "log-entry";
+    entry.dataset.tag = tag;
     const time = new Date().toLocaleTimeString();
     entry.innerHTML = `<span class="log-tag tag-${tag}">${tag}</span><strong>${time} — ${label}</strong><pre>${JSON.stringify(data, null, 2)}</pre>`;
     logStream.appendChild(entry);
     logStream.scrollTop = logStream.scrollHeight;
   }
+
+  document.getElementById("dmnOnlyToggle").addEventListener("change", (e) => {
+    logStream.classList.toggle("dmn-only", e.target.checked);
+  });
 
   function showIO(prefix, request, response) {
     const reqEl = document.getElementById(`${prefix}-req`);
@@ -206,16 +251,77 @@
   }
 
   function setStatus(status) {
-    const el = document.getElementById("orderStatus");
-    el.textContent = status;
-    el.className = "status-pill status-" + status;
+    ["orderStatus", "summaryStatus"].forEach((id) => {
+      const el = document.getElementById(id);
+      el.textContent = status;
+      el.className = "status-pill status-" + status;
+    });
   }
+
+  // Persistent summary in the sticky bar — visible regardless of scroll position, unlike
+  // the old "Session ready — internal orderId: xyz" text buried inside Step 2's card.
+  function updateSummary() {
+    document.getElementById("summaryApm").textContent = selectedApm ? selectedApm.label : "—";
+    document.getElementById("summaryAmount").textContent = selectedApm
+      ? `${document.getElementById("amount").value} ${document.getElementById("currency").value}`
+      : "—";
+    document.getElementById("summarySession").textContent = orderId ? orderId.slice(0, 8) : "none";
+  }
+
+  document.getElementById("amount").addEventListener("input", updateSummary);
+  document.getElementById("currency").addEventListener("input", updateSummary);
+
+  // "You are here" — highlights the one mandatory next step. Steps 5-8 are on-demand and
+  // not strictly ordered relative to each other, so they're never individually highlighted.
+  function updateStepHighlight() {
+    document.querySelectorAll(".card[data-step]").forEach((c) => c.classList.remove("step-active", "step-done"));
+    const step = (n) => document.querySelector(`.card[data-step="${n}"]`);
+
+    if (!orderId) {
+      step(2)?.classList.add("step-active");
+      return;
+    }
+    step(2)?.classList.add("step-done");
+
+    if (!paymentSucceeded) {
+      step(3)?.classList.add("step-active");
+      return;
+    }
+    step(3)?.classList.add("step-done");
+
+    const redirectBtn = document.getElementById("redirectBtn");
+    if (!redirectBtn.disabled && redirectBtn.dataset.url) {
+      step(4)?.classList.add("step-active");
+    } else {
+      step(4)?.classList.add("step-done");
+    }
+  }
+
+  function markLifecycle(stage) {
+    document.getElementById(`life-${stage}`)?.classList.add("active");
+  }
+
+  function resetLifecycle() {
+    ["session", "payment", "redirect", "status", "dmn", "details"].forEach((stage) =>
+      document.getElementById(`life-${stage}`)?.classList.remove("active")
+    );
+  }
+
+  // Step 8 (capture/void/refund) works standalone: enabled once a session exists AND
+  // either a payment succeeded in this session, or a manual transactionId override is typed.
+  function updateStep8Enabled() {
+    const hasOverride = document.getElementById("overrideTxnId").value.trim().length > 0;
+    const enabled = !!orderId && (paymentSucceeded || hasOverride);
+    ["captureBtn", "voidBtn", "refundBtn"].forEach((id) => (document.getElementById(id).disabled = !enabled));
+  }
+
+  document.getElementById("overrideTxnId").addEventListener("input", updateStep8Enabled);
 
   // Switching APMs starts a fresh payment attempt — clear every downstream step's
   // results/request-response panels so nothing from a previous APM's attempt lingers.
-  // Step 1 (session) and Step 2's own prepopulated fields are untouched.
+  // Step 1's own prepopulated fields and the Step 2 session are untouched.
   function resetDownstreamSteps() {
-    ["pay", "dmn", "verify", "ops"].forEach((prefix) => {
+    ["pay", "dmn", "status", "details", "ops"].forEach((prefix) => {
       document.getElementById(`${prefix}-req`).textContent = "—";
       document.getElementById(`${prefix}-res`).textContent = "—";
     });
@@ -228,28 +334,69 @@
 
     setStatus("PENDING");
 
-    document.getElementById("verifyResult").textContent = "";
+    document.getElementById("statusResult").textContent = "";
+    document.getElementById("detailsResult").textContent = "";
     document.getElementById("checkStatusBtn").disabled = true;
     document.getElementById("txnDetailsBtn").disabled = true;
 
     document.getElementById("opsResult").textContent = "";
     document.getElementById("opsLog").textContent = "";
-    document.getElementById("captureBtn").disabled = true;
-    document.getElementById("voidBtn").disabled = true;
-    document.getElementById("refundBtn").disabled = true;
+    paymentSucceeded = false;
+    updateStep8Enabled();
+
+    resetLifecycle();
+    if (orderId) markLifecycle("session");
+    updateSummary();
+    updateStepHighlight();
   }
 
+  // Full reset: clears the session itself, not just downstream results. Form inputs
+  // (amount/currency/customer details) are left as-is so you can immediately start a new run.
+  function resetRun() {
+    orderId = null;
+    document.getElementById("orderResult").textContent = "";
+    document.getElementById("session-req").textContent = "—";
+    document.getElementById("session-res").textContent = "—";
+    document.getElementById("payBtn").disabled = true;
+    document.getElementById("overrideTxnId").value = "";
+    document.getElementById("overrideCurrency").value = "";
+    document.getElementById("overrideAuthCode").value = "";
+    resetDownstreamSteps();
+  }
+
+  document.getElementById("resetRunBtn").addEventListener("click", (e) => {
+    e.preventDefault();
+    resetRun();
+  });
+
+  function buildFieldRow(f) {
+    const wrap = document.createElement("div");
+    wrap.innerHTML = `
+      <label>${f.label}${f.required ? " (required)" : " (optional)"}</label>
+      <input data-apm-field="${f.name}" placeholder="${f.placeholder || ""}" />
+    `;
+    return wrap;
+  }
+
+  // Required fields stay visible inline; optional ones (e.g. iDEAL's BIC) collapse behind
+  // a disclosure so Step 1 doesn't grow cluttered as more optional fields are added per APM.
   function renderApmFields(apm) {
     const container = document.getElementById("apmFields");
     container.innerHTML = "";
-    apm.fields.forEach((f) => {
-      const wrap = document.createElement("div");
-      wrap.innerHTML = `
-        <label>${f.label}${f.required ? " (required)" : " (optional)"}</label>
-        <input data-apm-field="${f.name}" placeholder="${f.placeholder || ""}" />
-      `;
-      container.appendChild(wrap);
-    });
+    const required = apm.fields.filter((f) => f.required);
+    const optional = apm.fields.filter((f) => !f.required);
+
+    required.forEach((f) => container.appendChild(buildFieldRow(f)));
+
+    if (optional.length > 0) {
+      const details = document.createElement("details");
+      const summary = document.createElement("summary");
+      summary.textContent = "Advanced / optional fields";
+      summary.style.cssText = "cursor:pointer;font-size:12px;color:#374151;margin-top:8px;";
+      details.appendChild(summary);
+      optional.forEach((f) => details.appendChild(buildFieldRow(f)));
+      container.appendChild(details);
+    }
   }
 
   function renderCommonExtraFields(apm) {
@@ -289,7 +436,12 @@
     document.getElementById("country").value = selectedApm.country;
     renderApmFields(selectedApm);
     renderCommonExtraFields(selectedApm);
+    // Auto-expand customer details only when this APM actually requires phone/deviceType —
+    // otherwise stay collapsed since first/last/email/country are just prefilled defaults.
+    document.getElementById("customerDetails").open = !!(selectedApm.needsPhone || selectedApm.needsDeviceType);
     document.getElementById("payBtn").disabled = !orderId;
+    updateSummary();
+    updateStepHighlight();
   }
 
   async function loadApms() {
@@ -313,9 +465,13 @@
     showIO("session", {}, data);
     if (res.ok) {
       orderId = data.orderId;
-      document.getElementById("orderResult").textContent = "Session ready — internal orderId: " + orderId;
+      document.getElementById("orderResult").textContent = "Session ready — see summary bar above.";
       document.getElementById("payBtn").disabled = !selectedApm;
+      updateStep8Enabled();
       setStatus("PENDING");
+      markLifecycle("session");
+      updateSummary();
+      updateStepHighlight();
     } else {
       document.getElementById("orderResult").textContent = "Error: " + data.error;
     }
@@ -353,6 +509,7 @@
     const redirectBtn = document.getElementById("redirectBtn");
     if (res.ok) {
       resultEl.textContent = "transactionStatus: " + data.transactionStatus;
+      markLifecycle("payment");
       // Driven by redirectUrl presence, not an exact transactionStatus === "REDIRECT" match —
       // some APMs return a redirectUrl alongside a transactionStatus other than the literal
       // string "REDIRECT" (e.g. casing differences, or PENDING with a follow-up redirect step).
@@ -368,9 +525,10 @@
           setStatus(data.transactionStatus);
         }
       }
-      ["checkStatusBtn", "txnDetailsBtn", "captureBtn", "voidBtn", "refundBtn"].forEach(
-        (id) => (document.getElementById(id).disabled = false)
-      );
+      ["checkStatusBtn", "txnDetailsBtn"].forEach((id) => (document.getElementById(id).disabled = false));
+      paymentSucceeded = true;
+      updateStep8Enabled();
+      updateStepHighlight();
     } else {
       resultEl.textContent = "Error: " + data.error;
     }
@@ -378,10 +536,15 @@
 
   document.getElementById("redirectBtn").addEventListener("click", (e) => {
     const url = e.target.dataset.url;
-    if (url) window.open(url, "_blank", "noopener,noreferrer");
+    if (url) {
+      window.open(url, "_blank", "noopener,noreferrer");
+      markLifecycle("redirect");
+      updateStepHighlight();
+    }
   });
 
-  document.getElementById("clearLogBtn").addEventListener("click", () => {
+  document.getElementById("clearLogBtn").addEventListener("click", (e) => {
+    e.preventDefault();
     logStream.innerHTML = "";
   });
 
@@ -390,10 +553,11 @@
     const res = await fetch(`/api/orders/${orderId}/payment-status`);
     const data = await res.json();
     appendLog("client", "/payment-status response", data);
-    showIO("verify", { call: "getPaymentStatus", orderId }, data);
-    document.getElementById("verifyResult").textContent = res.ok
+    showIO("status", { call: "getPaymentStatus", orderId }, data);
+    document.getElementById("statusResult").textContent = res.ok
       ? "transactionStatus: " + (data.transactionStatus ?? "n/a")
       : "Error: " + data.error;
+    if (res.ok) markLifecycle("status");
   });
 
   document.getElementById("txnDetailsBtn").addEventListener("click", async () => {
@@ -401,10 +565,11 @@
     const res = await fetch(`/api/orders/${orderId}/transaction-details`);
     const data = await res.json();
     appendLog("client", "/transaction-details response", data);
-    showIO("verify", { call: "getTransactionDetails", orderId }, data);
-    document.getElementById("verifyResult").textContent = res.ok
+    showIO("details", { call: "getTransactionDetails", orderId }, data);
+    document.getElementById("detailsResult").textContent = res.ok
       ? "transactionType: " + (data.transactionType ?? "n/a") + " · status: " + (data.transactionStatus ?? "n/a")
       : "Error: " + data.error;
+    if (res.ok) markLifecycle("details");
   });
 
   function renderOpsLog(operations) {
@@ -427,9 +592,18 @@
     return data;
   }
 
+  function readOverrides(extra) {
+    return {
+      transactionId: document.getElementById("overrideTxnId").value.trim() || undefined,
+      currency: document.getElementById("overrideCurrency").value.trim() || undefined,
+      ...extra,
+    };
+  }
+
   document.getElementById("captureBtn").addEventListener("click", async () => {
     const amount = document.getElementById("captureAmount").value || undefined;
-    const reqBody = { amount };
+    const authCode = document.getElementById("overrideAuthCode").value.trim() || undefined;
+    const reqBody = { amount, ...readOverrides({ authCode }) };
     appendLog("client", `POST /api/orders/${orderId}/capture`, reqBody);
     const res = await fetch(`/api/orders/${orderId}/capture`, {
       method: "POST",
@@ -446,11 +620,16 @@
   });
 
   document.getElementById("voidBtn").addEventListener("click", async () => {
-    appendLog("client", `POST /api/orders/${orderId}/void`, {});
-    const res = await fetch(`/api/orders/${orderId}/void`, { method: "POST" });
+    const reqBody = readOverrides({});
+    appendLog("client", `POST /api/orders/${orderId}/void`, reqBody);
+    const res = await fetch(`/api/orders/${orderId}/void`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(reqBody),
+    });
     const data = await res.json();
     appendLog("client", "/void response", data);
-    showIO("ops", { call: "voidTransaction", orderId }, data);
+    showIO("ops", { call: "voidTransaction", ...reqBody }, data);
     document.getElementById("opsResult").textContent = res.ok
       ? "Void transactionStatus: " + data.transactionStatus
       : "Error: " + data.error;
@@ -462,7 +641,7 @@
 
   document.getElementById("refundBtn").addEventListener("click", async () => {
     const amount = document.getElementById("refundAmount").value || undefined;
-    const reqBody = { amount };
+    const reqBody = { amount, ...readOverrides({}) };
     appendLog("client", `POST /api/orders/${orderId}/refund`, reqBody);
     const res = await fetch(`/api/orders/${orderId}/refund`, {
       method: "POST",
@@ -493,6 +672,7 @@
     const data = await res.json();
     appendLog("client", "simulate-dmn response", data);
     showIO("dmn", reqBody, data);
+    if (res.ok) markLifecycle("dmn");
   }
 
   const es = new EventSource("/api/events");
@@ -504,11 +684,24 @@
     appendLog(tag, evt.type, evt.data);
     if (evt.type === "dmn_received") {
       showIO("dmn", { source: "SSE (real-time DMN)" }, evt.data);
+      markLifecycle("dmn");
     }
     if (evt.type === "order_updated" && evt.orderId === orderId) {
       setStatus(evt.data.status);
     }
   };
+
+  // Every request/response panel gets a small "Copy" button — added generically here
+  // rather than duplicated across all 16 io-blocks in the HTML.
+  document.querySelectorAll(".io-block h3").forEach((h3) => {
+    const pre = h3.nextElementSibling;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "copy-btn";
+    btn.textContent = "Copy";
+    btn.addEventListener("click", () => navigator.clipboard.writeText(pre.textContent));
+    h3.appendChild(btn);
+  });
 
   loadApms();
 </script>
