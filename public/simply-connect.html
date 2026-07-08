@@ -232,7 +232,7 @@
     });
     const data = await res.json();
     appendLog("client", "/simply-connect/session response", data);
-    showIO("session", reqBody, data);
+    showIO("session", data.nuveiRequest, data.nuveiResponse);
 
     if (res.ok) {
       orderId = data.orderId;
@@ -288,7 +288,7 @@
     const res = await fetch(`/api/simply-connect/orders/${orderId}/status`);
     const data = await res.json();
     appendLog("client", "/status response", data);
-    showIO("verify", { orderId }, data);
+    showIO("verify", data.nuveiRequest, data.nuveiResponse);
     if (data.transactionStatus) setStatus(data.transactionStatus);
     if (res.ok) markLifecycle("verify");
   });

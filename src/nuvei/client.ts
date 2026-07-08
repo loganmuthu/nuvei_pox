@@ -8,7 +8,15 @@ import {
   TransactionDetailsResponse,
 } from "./types";
 
-async function post<T>(path: string, body: Record<string, unknown>): Promise<T> {
+// Every client function returns the exact request body sent alongside the exact response
+// received, so callers (routes) can surface the real Nuvei wire traffic to the UI instead
+// of re-describing "what we meant to send" from application-level variables.
+export interface NuveiCall<T> {
+  request: Record<string, unknown>;
+  response: T;
+}
+
+async function post<T>(path: string, body: Record<string, unknown>): Promise<NuveiCall<T>> {
   const res = await fetch(`${NUVEI_BASE_URL}/${path}.do`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -17,10 +25,11 @@ async function post<T>(path: string, body: Record<string, unknown>): Promise<T> 
   if (!res.ok) {
     throw new Error(`Nuvei ${path} HTTP ${res.status}`);
   }
-  return res.json() as Promise<T>;
+  const response = (await res.json()) as T;
+  return { request: body, response };
 }
 
-export async function getSessionToken(params: { clientRequestId: string }): Promise<SessionTokenResponse> {
+export async function getSessionToken(params: { clientRequestId: string }): Promise<NuveiCall<SessionTokenResponse>> {
   const timeStamp = nuveiTimestamp();
   const checksum = sessionChecksum({
     merchantId: config.nuvei.merchantId,
@@ -55,7 +64,7 @@ export async function payApm(params: {
   deviceType?: "DESKTOP" | "SMARTPHONE" | "TABLET";
   ipAddress: string;
   returnBaseUrl: string;
-}): Promise<PaymentResponse> {
+}): Promise<NuveiCall<PaymentResponse>> {
   const timeStamp = nuveiTimestamp();
   const checksum = requestChecksum({
     merchantId: config.nuvei.merchantId,
@@ -112,7 +121,7 @@ export async function payApm(params: {
 export async function getPaymentStatus(params: {
   sessionToken: string;
   clientRequestId: string;
-}): Promise<PaymentStatusResponse> {
+}): Promise<NuveiCall<PaymentStatusResponse>> {
   const timeStamp = nuveiTimestamp();
   const checksum = sessionChecksum({
     merchantId: config.nuvei.merchantId,
@@ -137,7 +146,7 @@ export async function getPaymentStatus(params: {
 export async function getTransactionDetails(params: {
   transactionId: string;
   clientRequestId: string;
-}): Promise<TransactionDetailsResponse> {
+}): Promise<NuveiCall<TransactionDetailsResponse>> {
   const timeStamp = nuveiTimestamp();
   const checksum = sessionChecksum({
     merchantId: config.nuvei.merchantId,
@@ -167,7 +176,7 @@ export async function settleTransaction(params: {
   currency: string;
   clientUniqueId: string;
   clientRequestId: string;
-}): Promise<FinancialOperationResponse> {
+}): Promise<NuveiCall<FinancialOperationResponse>> {
   const timeStamp = nuveiTimestamp();
   const checksum = requestChecksum({
     merchantId: config.nuvei.merchantId,
@@ -200,7 +209,7 @@ export async function voidTransaction(params: {
   currency: string;
   clientUniqueId: string;
   clientRequestId: string;
-}): Promise<FinancialOperationResponse> {
+}): Promise<NuveiCall<FinancialOperationResponse>> {
   const timeStamp = nuveiTimestamp();
   const checksum = requestChecksum({
     merchantId: config.nuvei.merchantId,
@@ -232,7 +241,7 @@ export async function refundTransaction(params: {
   currency: string;
   clientUniqueId: string;
   clientRequestId: string;
-}): Promise<FinancialOperationResponse> {
+}): Promise<NuveiCall<FinancialOperationResponse>> {
   const timeStamp = nuveiTimestamp();
   const checksum = requestChecksum({
     merchantId: config.nuvei.merchantId,

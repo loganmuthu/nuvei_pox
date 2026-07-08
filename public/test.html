@@ -454,7 +454,7 @@
     const res = await fetch("/api/orders", { method: "POST" });
     const data = await res.json();
     appendLog("client", "/api/orders response", data);
-    showIO("session", {}, data);
+    showIO("session", data.nuveiRequest, data.nuveiResponse);
     if (res.ok) {
       orderId = data.orderId;
       document.getElementById("orderResult").textContent = "Session ready — see summary bar above.";
@@ -494,7 +494,7 @@
     });
     const data = await res.json();
     appendLog("client", "/pay response", data);
-    showIO("pay", payload, data);
+    showIO("pay", data.nuveiRequest, data.nuveiResponse);
 
     const resultEl = document.getElementById("payResult");
     const redirectEl = document.getElementById("redirectArea");
@@ -549,7 +549,7 @@
     const res = await fetch(`/api/orders/${orderId}/payment-status`);
     const data = await res.json();
     appendLog("client", "/payment-status response", data);
-    showIO("status", { call: "getPaymentStatus", orderId }, data);
+    showIO("status", data.nuveiRequest, data.nuveiResponse);
     document.getElementById("statusResult").textContent = res.ok
       ? "transactionStatus: " + (data.transactionStatus ?? "n/a")
       : "Error: " + data.error;
@@ -561,7 +561,7 @@
     const res = await fetch(`/api/orders/${orderId}/transaction-details`);
     const data = await res.json();
     appendLog("client", "/transaction-details response", data);
-    showIO("details", { call: "getTransactionDetails", orderId }, data);
+    showIO("details", data.nuveiRequest, data.nuveiResponse);
     document.getElementById("detailsResult").textContent = res.ok
       ? "transactionType: " + (data.transactionType ?? "n/a") + " · status: " + (data.transactionStatus ?? "n/a")
       : "Error: " + data.error;
@@ -608,7 +608,7 @@
     });
     const data = await res.json();
     appendLog("client", "/capture response", data);
-    showIO("ops", { call: "settleTransaction", ...reqBody }, data);
+    showIO("ops", data.nuveiRequest, data.nuveiResponse);
     document.getElementById("opsResult").textContent = res.ok
       ? "Capture transactionStatus: " + data.transactionStatus
       : "Error: " + data.error;
@@ -625,7 +625,7 @@
     });
     const data = await res.json();
     appendLog("client", "/void response", data);
-    showIO("ops", { call: "voidTransaction", ...reqBody }, data);
+    showIO("ops", data.nuveiRequest, data.nuveiResponse);
     document.getElementById("opsResult").textContent = res.ok
       ? "Void transactionStatus: " + data.transactionStatus
       : "Error: " + data.error;
@@ -646,7 +646,7 @@
     });
     const data = await res.json();
     appendLog("client", "/refund response", data);
-    showIO("ops", { call: "refundTransaction", ...reqBody }, data);
+    showIO("ops", data.nuveiRequest, data.nuveiResponse);
     document.getElementById("opsResult").textContent = res.ok
       ? "Refund transactionStatus: " + data.transactionStatus
       : "Error: " + data.error;

@@ -1,5 +1,6 @@
 import { config, NUVEI_BASE_URL } from "../config";
 import { nuveiTimestamp, requestChecksum } from "./checksum";
+import { NuveiCall } from "./client";
 import { SessionTokenResponse } from "./types";
 
 // Simply Connect's own documented flow uses /openOrder (not /getSessionToken) as step 1 —
@@ -18,7 +19,7 @@ export async function openOrder(params: {
   amount: string;
   currency: string;
   userTokenId?: string;
-}): Promise<OpenOrderResponse> {
+}): Promise<NuveiCall<OpenOrderResponse>> {
   const timeStamp = nuveiTimestamp();
   const checksum = requestChecksum({
     merchantId: config.nuvei.merchantId,
@@ -30,23 +31,26 @@ export async function openOrder(params: {
     secretKey: config.nuvei.secretKey,
   });
 
+  const request = {
+    merchantId: config.nuvei.merchantId,
+    merchantSiteId: config.nuvei.merchantSiteId,
+    clientUniqueId: params.clientUniqueId,
+    clientRequestId: params.clientRequestId,
+    amount: params.amount,
+    currency: params.currency,
+    userTokenId: params.userTokenId,
+    timeStamp,
+    checksum,
+  };
+
   const res = await fetch(`${NUVEI_BASE_URL}/openOrder.do`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      merchantId: config.nuvei.merchantId,
-      merchantSiteId: config.nuvei.merchantSiteId,
-      clientUniqueId: params.clientUniqueId,
-      clientRequestId: params.clientRequestId,
-      amount: params.amount,
-      currency: params.currency,
-      userTokenId: params.userTokenId,
-      timeStamp,
-      checksum,
-    }),
+    body: JSON.stringify(request),
   });
   if (!res.ok) {
     throw new Error(`Nuvei openOrder HTTP ${res.status}`);
   }
-  return res.json() as Promise<OpenOrderResponse>;
+  const response = (await res.json()) as OpenOrderResponse;
+  return { request, response };
 }

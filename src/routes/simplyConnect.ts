@@ -19,19 +19,19 @@ simplyConnectRouter.post("/simply-connect/session", async (req, res) => {
   const clientUniqueId = randomUUID();
   const clientRequestId = randomUUID();
 
-  publish({ type: "sc_open_order_request", data: { clientUniqueId, amount, currency } });
-  const result = await openOrder({ clientUniqueId, clientRequestId, amount, currency });
-  publish({ type: "sc_open_order_response", data: result });
+  const { request, response } = await openOrder({ clientUniqueId, clientRequestId, amount, currency });
+  publish({ type: "sc_open_order_request", data: request });
+  publish({ type: "sc_open_order_response", data: response });
 
-  if (result.status !== "SUCCESS") {
-    return res.status(502).json({ error: result.reason || "Failed to open order" });
+  if (response.status !== "SUCCESS") {
+    return res.status(502).json({ error: response.reason || "Failed to open order", nuveiRequest: request, nuveiResponse: response });
   }
 
   const orderId = randomUUID();
   saveOrder({
     orderId,
     clientUniqueId,
-    sessionToken: result.sessionToken,
+    sessionToken: response.sessionToken,
     amount,
     currency,
     status: "PENDING",
@@ -42,11 +42,13 @@ simplyConnectRouter.post("/simply-connect/session", async (req, res) => {
   // merchantId/merchantSiteId are not secret — checkout.js needs them client-side to render.
   res.status(201).json({
     orderId,
-    sessionToken: result.sessionToken,
-    nuveiOrderId: result.orderId,
+    sessionToken: response.sessionToken,
+    nuveiOrderId: response.orderId,
     merchantId: config.nuvei.merchantId,
     merchantSiteId: config.nuvei.merchantSiteId,
     env: config.nuvei.env === "live" ? "prod" : "int",
+    nuveiRequest: request,
+    nuveiResponse: response,
   });
 });
 
@@ -59,14 +61,14 @@ simplyConnectRouter.get("/simply-connect/orders/:orderId/status", async (req, re
   }
 
   const clientRequestId = randomUUID();
-  publish({ type: "sc_payment_status_request", orderId: order.orderId, data: { clientRequestId } });
-  const result = await getPaymentStatus({ sessionToken: order.sessionToken, clientRequestId });
-  publish({ type: "sc_payment_status_response", orderId: order.orderId, data: result });
+  const { request, response } = await getPaymentStatus({ sessionToken: order.sessionToken, clientRequestId });
+  publish({ type: "sc_payment_status_request", orderId: order.orderId, data: request });
+  publish({ type: "sc_payment_status_response", orderId: order.orderId, data: response });
 
-  if (result.status === "SUCCESS" && (result.transactionStatus === "APPROVED" || result.transactionStatus === "DECLINED")) {
-    order.status = result.transactionStatus;
+  if (response.status === "SUCCESS" && (response.transactionStatus === "APPROVED" || response.transactionStatus === "DECLINED")) {
+    order.status = response.transactionStatus;
     saveOrder(order);
   }
 
-  res.json(result);
+  res.json({ ...response, nuveiRequest: request, nuveiResponse: response });
 });

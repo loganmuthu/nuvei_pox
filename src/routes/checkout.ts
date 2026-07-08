@@ -19,25 +19,29 @@ checkoutRouter.post("/orders", async (_req, res) => {
   const clientUniqueId = randomUUID();
   const clientRequestId = randomUUID();
 
-  publish({ type: "session_request", data: { clientRequestId } });
-  const result = await getSessionToken({ clientRequestId });
-  publish({ type: "session_response", data: result });
+  const { request, response } = await getSessionToken({ clientRequestId });
+  publish({ type: "session_request", data: request });
+  publish({ type: "session_response", data: response });
 
-  if (result.status !== "SUCCESS") {
-    return res.status(502).json({ error: result.reason || "Failed to get session token" });
+  if (response.status !== "SUCCESS") {
+    return res.status(502).json({
+      error: response.reason || "Failed to get session token",
+      nuveiRequest: request,
+      nuveiResponse: response,
+    });
   }
 
   const orderId = randomUUID();
   saveOrder({
     orderId,
     clientUniqueId,
-    sessionToken: result.sessionToken,
+    sessionToken: response.sessionToken,
     status: "PENDING",
     processedDmnIds: new Set(),
     operations: [],
   });
 
-  res.status(201).json({ orderId });
+  res.status(201).json({ orderId, nuveiRequest: request, nuveiResponse: response });
 });
 
 checkoutRouter.post("/orders/:orderId/pay", async (req, res) => {
@@ -78,21 +82,7 @@ checkoutRouter.post("/orders/:orderId/pay", async (req, res) => {
     return res.status(404).json({ error: "Order not found" });
   }
 
-  const requestPayload = {
-    amount,
-    currency,
-    paymentMethod,
-    apmFields: fields ?? {},
-    email,
-    firstName,
-    lastName,
-    country,
-    phone,
-    deviceType,
-  };
-  publish({ type: "payment_request", orderId, data: requestPayload });
-
-  const result = await payApm({
+  const { request, response } = await payApm({
     sessionToken: order.sessionToken,
     clientRequestId: randomUUID(),
     amount,
@@ -109,22 +99,27 @@ checkoutRouter.post("/orders/:orderId/pay", async (req, res) => {
     returnBaseUrl: `${req.protocol}://${req.get("host")}`,
   });
 
-  publish({ type: "payment_response", orderId, data: result });
+  publish({ type: "payment_request", orderId, data: request });
+  publish({ type: "payment_response", orderId, data: response });
 
-  if (result.status !== "SUCCESS") {
-    return res.status(502).json({ error: result.reason || "Payment request failed" });
+  if (response.status !== "SUCCESS") {
+    return res.status(502).json({
+      error: response.reason || "Payment request failed",
+      nuveiRequest: request,
+      nuveiResponse: response,
+    });
   }
 
   order.amount = amount;
   order.currency = currency;
-  order.nuveiOrderId = result.orderId;
-  order.paymentTransactionId = result.transactionId;
-  order.paymentAuthCode = result.authCode;
-  if (result.transactionId) {
+  order.nuveiOrderId = response.orderId;
+  order.paymentTransactionId = response.transactionId;
+  order.paymentAuthCode = response.authCode;
+  if (response.transactionId) {
     order.operations.push({
       type: "payment",
-      transactionId: result.transactionId,
-      status: result.transactionStatus,
+      transactionId: response.transactionId,
+      status: response.transactionStatus,
       amount,
       timestamp: new Date().toISOString(),
     });
@@ -133,9 +128,11 @@ checkoutRouter.post("/orders/:orderId/pay", async (req, res) => {
 
   // transactionStatus here is provisional for async/redirect APMs — final truth arrives via DMN.
   res.json({
-    transactionStatus: result.transactionStatus,
-    transactionId: result.transactionId,
-    redirectUrl: extractRedirectUrl(result),
+    transactionStatus: response.transactionStatus,
+    transactionId: response.transactionId,
+    redirectUrl: extractRedirectUrl(response),
+    nuveiRequest: request,
+    nuveiResponse: response,
   });
 });
 

@@ -47,20 +47,20 @@ financialOpsRouter.get("/orders/:orderId/payment-status", async (req, res) => {
   }
 
   const clientRequestId = randomUUID();
-  publish({ type: "payment_status_request", orderId: order.orderId, data: { clientRequestId } });
-  const result = await getPaymentStatus({ sessionToken: order.sessionToken, clientRequestId });
-  publish({ type: "payment_status_response", orderId: order.orderId, data: result });
+  const { request, response } = await getPaymentStatus({ sessionToken: order.sessionToken, clientRequestId });
+  publish({ type: "payment_status_request", orderId: order.orderId, data: request });
+  publish({ type: "payment_status_response", orderId: order.orderId, data: response });
 
-  if (result.status !== "SUCCESS") {
-    return res.status(502).json({ error: result.reason || "getPaymentStatus failed" });
+  if (response.status !== "SUCCESS") {
+    return res.status(502).json({ error: response.reason || "getPaymentStatus failed", nuveiRequest: request, nuveiResponse: response });
   }
 
-  if (result.transactionStatus === "APPROVED" || result.transactionStatus === "DECLINED") {
-    order.status = result.transactionStatus;
+  if (response.transactionStatus === "APPROVED" || response.transactionStatus === "DECLINED") {
+    order.status = response.transactionStatus;
     saveOrder(order);
   }
 
-  res.json(result);
+  res.json({ ...response, nuveiRequest: request, nuveiResponse: response });
 });
 
 financialOpsRouter.get("/orders/:orderId/transaction-details", async (req, res) => {
@@ -74,15 +74,15 @@ financialOpsRouter.get("/orders/:orderId/transaction-details", async (req, res) 
   }
   const clientRequestId = randomUUID();
 
-  publish({ type: "transaction_details_request", orderId: order.orderId, data: { transactionId } });
-  const result = await getTransactionDetails({ transactionId, clientRequestId });
-  publish({ type: "transaction_details_response", orderId: order.orderId, data: result });
+  const { request, response } = await getTransactionDetails({ transactionId, clientRequestId });
+  publish({ type: "transaction_details_request", orderId: order.orderId, data: request });
+  publish({ type: "transaction_details_response", orderId: order.orderId, data: response });
 
-  if (result.status !== "SUCCESS") {
-    return res.status(502).json({ error: result.reason || "getTransactionDetails failed" });
+  if (response.status !== "SUCCESS") {
+    return res.status(502).json({ error: response.reason || "getTransactionDetails failed", nuveiRequest: request, nuveiResponse: response });
   }
 
-  res.json(result);
+  res.json({ ...response, nuveiRequest: request, nuveiResponse: response });
 });
 
 financialOpsRouter.post("/orders/:orderId/capture", async (req, res) => {
@@ -109,12 +109,7 @@ financialOpsRouter.post("/orders/:orderId/capture", async (req, res) => {
   }
   const clientRequestId = randomUUID();
 
-  publish({
-    type: "capture_request",
-    orderId: order.orderId,
-    data: { transactionId: resolved.transactionId, authCode, amount: captureAmount, currency: resolved.currency },
-  });
-  const result = await settleTransaction({
+  const { request, response } = await settleTransaction({
     relatedTransactionId: resolved.transactionId,
     authCode,
     amount: captureAmount,
@@ -122,24 +117,25 @@ financialOpsRouter.post("/orders/:orderId/capture", async (req, res) => {
     clientUniqueId: randomUUID(),
     clientRequestId,
   });
-  publish({ type: "capture_response", orderId: order.orderId, data: result });
+  publish({ type: "capture_request", orderId: order.orderId, data: request });
+  publish({ type: "capture_response", orderId: order.orderId, data: response });
 
-  if (result.status !== "SUCCESS") {
-    return res.status(502).json({ error: result.reason || "settleTransaction failed" });
+  if (response.status !== "SUCCESS") {
+    return res.status(502).json({ error: response.reason || "settleTransaction failed", nuveiRequest: request, nuveiResponse: response });
   }
 
-  if (result.transactionId) {
+  if (response.transactionId) {
     order.operations.push({
       type: "capture",
-      transactionId: result.transactionId,
-      status: result.transactionStatus,
+      transactionId: response.transactionId,
+      status: response.transactionStatus,
       amount: captureAmount,
       timestamp: new Date().toISOString(),
     });
     saveOrder(order);
   }
 
-  res.json(result);
+  res.json({ ...response, nuveiRequest: request, nuveiResponse: response });
 });
 
 financialOpsRouter.post("/orders/:orderId/void", async (req, res) => {
@@ -155,31 +151,31 @@ financialOpsRouter.post("/orders/:orderId/void", async (req, res) => {
   if (!resolved.ok) return res.status(resolved.status).json(resolved.body);
 
   const clientRequestId = randomUUID();
-  publish({ type: "void_request", orderId: order.orderId, data: { transactionId: resolved.transactionId } });
-  const result = await voidTransaction({
+  const { request, response } = await voidTransaction({
     relatedTransactionId: resolved.transactionId,
     currency: resolved.currency,
     clientUniqueId: randomUUID(),
     clientRequestId,
   });
-  publish({ type: "void_response", orderId: order.orderId, data: result });
+  publish({ type: "void_request", orderId: order.orderId, data: request });
+  publish({ type: "void_response", orderId: order.orderId, data: response });
 
-  if (result.status !== "SUCCESS") {
-    return res.status(502).json({ error: result.reason || "voidTransaction failed" });
+  if (response.status !== "SUCCESS") {
+    return res.status(502).json({ error: response.reason || "voidTransaction failed", nuveiRequest: request, nuveiResponse: response });
   }
 
-  if (result.transactionId) {
+  if (response.transactionId) {
     order.operations.push({
       type: "void",
-      transactionId: result.transactionId,
-      status: result.transactionStatus,
+      transactionId: response.transactionId,
+      status: response.transactionStatus,
       timestamp: new Date().toISOString(),
     });
     order.status = "DECLINED";
     saveOrder(order);
   }
 
-  res.json(result);
+  res.json({ ...response, nuveiRequest: request, nuveiResponse: response });
 });
 
 financialOpsRouter.post("/orders/:orderId/refund", async (req, res) => {
@@ -201,34 +197,30 @@ financialOpsRouter.post("/orders/:orderId/refund", async (req, res) => {
   }
   const clientRequestId = randomUUID();
 
-  publish({
-    type: "refund_request",
-    orderId: order.orderId,
-    data: { transactionId: resolved.transactionId, amount: refundAmount, currency: resolved.currency },
-  });
-  const result = await refundTransaction({
+  const { request, response } = await refundTransaction({
     relatedTransactionId: resolved.transactionId,
     amount: refundAmount,
     currency: resolved.currency,
     clientUniqueId: randomUUID(),
     clientRequestId,
   });
-  publish({ type: "refund_response", orderId: order.orderId, data: result });
+  publish({ type: "refund_request", orderId: order.orderId, data: request });
+  publish({ type: "refund_response", orderId: order.orderId, data: response });
 
-  if (result.status !== "SUCCESS") {
-    return res.status(502).json({ error: result.reason || "refundTransaction failed" });
+  if (response.status !== "SUCCESS") {
+    return res.status(502).json({ error: response.reason || "refundTransaction failed", nuveiRequest: request, nuveiResponse: response });
   }
 
-  if (result.transactionId) {
+  if (response.transactionId) {
     order.operations.push({
       type: "refund",
-      transactionId: result.transactionId,
-      status: result.transactionStatus,
+      transactionId: response.transactionId,
+      status: response.transactionStatus,
       amount: refundAmount,
       timestamp: new Date().toISOString(),
     });
     saveOrder(order);
   }
 
-  res.json(result);
+  res.json({ ...response, nuveiRequest: request, nuveiResponse: response });
 });
