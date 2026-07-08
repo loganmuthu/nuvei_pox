@@ -42,7 +42,12 @@
       "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{const j=JSON.parse\\(d\\);console.log\\(j.length,'APMs:'\\);j.forEach\\(a=>console.log\\(' -',a.code, a.flowType\\)\\)}\\)\")",
       "PowerShell(Get-CimInstance *)",
       "Bash(curl -s -X POST http://localhost:3000/api/orders/fake-id/capture -H \"Content-Type: application/json\" -d '{\"transactionId\":\"ext-123\",\"authCode\":\"111570\",\"currency\":\"EUR\",\"amount\":\"5.00\"}')",
-      "Bash(curl -s -X POST http://localhost:3000/api/orders/fake-id/void -H \"Content-Type: application/json\" -d '{\"transactionId\":\"ext-123\",\"currency\":\"EUR\"}')"
+      "Bash(curl -s -X POST http://localhost:3000/api/orders/fake-id/void -H \"Content-Type: application/json\" -d '{\"transactionId\":\"ext-123\",\"currency\":\"EUR\"}')",
+      "Bash(az --version)",
+      "Bash(git --version)",
+      "PowerShell(winget *)",
+      "Bash(git init *)",
+      "Bash(git add *)"
     ]
   }
 }

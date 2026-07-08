@@ -10,6 +10,11 @@ import { testToolsRouter } from "./routes/testTools";
 
 const app = express();
 
+// Required behind Azure App Service's reverse proxy (and any tunnel/host that terminates
+// TLS in front of us) — otherwise req.protocol always reports "http", which produces
+// insecure notify_url/successUrl values that Nuvei will reject.
+app.set("trust proxy", true);
+
 app.use("/webhooks", express.urlencoded({ extended: false }));
 app.use(dmnRouter);
 
