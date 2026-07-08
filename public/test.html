@@ -100,12 +100,15 @@
       <h2><span class="step-num">Step 3</span>Initiate payment</h2>
       <p class="hint">
         Calls <code>/payment</code> with the Step 2 <code>sessionToken</code> and the Step 1 details. Redirect-flow
-        APMs return a <code>redirectUrl</code> here instead of an immediate APPROVED/DECLINED — see Step 4.
+        APMs return a <code>redirectUrl</code> here instead of an immediate APPROVED/DECLINED — the redirect opens
+        automatically below; the button stays clickable in case it was blocked or you want to reopen it.
       </p>
       <div class="step-body">
         <div>
           <button id="payBtn" disabled>Initiate payment</button>
           <div id="payResult" class="status-line"></div>
+          <button id="redirectBtn" class="secondary" disabled>↗ Go to redirect page</button>
+          <div id="redirectArea" class="status-line">—</div>
         </div>
         <div class="step-io">
           <div class="io-block"><h3>Request → Nuvei (/payment)</h3><pre id="pay-req">—</pre></div>
@@ -115,14 +118,7 @@
     </div>
 
     <div class="card" data-step="4">
-      <h2><span class="step-num">Step 4</span>Redirection</h2>
-      <p class="hint">Opens the Step 3 <code>redirectUrl</code> in a new tab so this console stays open.</p>
-      <button id="redirectBtn" class="secondary" disabled>Go to redirect page</button>
-      <div id="redirectArea" class="status-line">—</div>
-    </div>
-
-    <div class="card" data-step="5">
-      <h2><span class="step-num">Step 5</span>Payment status</h2>
+      <h2><span class="step-num">Step 4</span>Payment status</h2>
       <p class="hint">
         On-demand re-check, not a substitute for the DMN — only works while the Step 2 session is still open,
         and shouldn't be polled repeatedly (risk of IP block).
@@ -139,8 +135,8 @@
       </div>
     </div>
 
-    <div class="card" data-step="6">
-      <h2><span class="step-num">Step 6</span>DMN &amp; order status</h2>
+    <div class="card" data-step="5">
+      <h2><span class="step-num">Step 5</span>DMN &amp; order status</h2>
       <p class="hint">
         The authoritative source of final status. Since Nuvei can't reach this local server, use the simulate
         buttons to fire a correctly-signed DMN through the same validation path a real webhook would use.
@@ -158,9 +154,9 @@
       </div>
     </div>
 
-    <div class="card" data-step="7">
-      <h2><span class="step-num">Step 7</span>Get transaction details</h2>
-      <p class="hint">The durable lookup by <code>transactionId</code> — unlike Step 5, works even after the session expires.</p>
+    <div class="card" data-step="6">
+      <h2><span class="step-num">Step 6</span>Get transaction details</h2>
+      <p class="hint">The durable lookup by <code>transactionId</code> — unlike Step 4, works even after the session expires.</p>
       <div class="step-body">
         <div>
           <button id="txnDetailsBtn" class="secondary" disabled>Get /getTransactionDetails</button>
@@ -173,8 +169,8 @@
       </div>
     </div>
 
-    <div class="card" data-step="8">
-      <h2><span class="step-num">Step 8</span>Post-payment: capture / void / refund</h2>
+    <div class="card" data-step="7">
+      <h2><span class="step-num">Step 7</span>Post-payment: capture / void / refund</h2>
       <p class="hint">
         <strong>Capture</strong> only applies to Auth-type transactions. <strong>Void</strong>/<strong>Refund</strong>
         are real, destructive operations against Nuvei's sandbox. Works standalone against any known transaction —
@@ -271,8 +267,10 @@
   document.getElementById("amount").addEventListener("input", updateSummary);
   document.getElementById("currency").addEventListener("input", updateSummary);
 
-  // "You are here" — highlights the one mandatory next step. Steps 5-8 are on-demand and
+  // "You are here" — highlights the one mandatory next step. Steps 4-7 are on-demand and
   // not strictly ordered relative to each other, so they're never individually highlighted.
+  // The redirect (when applicable) happens automatically within Step 3, so it doesn't get
+  // its own highlighted step.
   function updateStepHighlight() {
     document.querySelectorAll(".card[data-step]").forEach((c) => c.classList.remove("step-active", "step-done"));
     const step = (n) => document.querySelector(`.card[data-step="${n}"]`);
@@ -288,13 +286,6 @@
       return;
     }
     step(3)?.classList.add("step-done");
-
-    const redirectBtn = document.getElementById("redirectBtn");
-    if (!redirectBtn.disabled && redirectBtn.dataset.url) {
-      step(4)?.classList.add("step-active");
-    } else {
-      step(4)?.classList.add("step-done");
-    }
   }
 
   function markLifecycle(stage) {
@@ -307,15 +298,15 @@
     );
   }
 
-  // Step 8 (capture/void/refund) works standalone: enabled once a session exists AND
+  // Step 7 (capture/void/refund) works standalone: enabled once a session exists AND
   // either a payment succeeded in this session, or a manual transactionId override is typed.
-  function updateStep8Enabled() {
+  function updatePostPaymentEnabled() {
     const hasOverride = document.getElementById("overrideTxnId").value.trim().length > 0;
     const enabled = !!orderId && (paymentSucceeded || hasOverride);
     ["captureBtn", "voidBtn", "refundBtn"].forEach((id) => (document.getElementById(id).disabled = !enabled));
   }
 
-  document.getElementById("overrideTxnId").addEventListener("input", updateStep8Enabled);
+  document.getElementById("overrideTxnId").addEventListener("input", updatePostPaymentEnabled);
 
   // Switching APMs starts a fresh payment attempt — clear every downstream step's
   // results/request-response panels so nothing from a previous APM's attempt lingers.
@@ -330,6 +321,7 @@
     document.getElementById("redirectArea").textContent = "—";
     const redirectBtn = document.getElementById("redirectBtn");
     redirectBtn.disabled = true;
+    redirectBtn.textContent = "↗ Go to redirect page";
     delete redirectBtn.dataset.url;
 
     setStatus("PENDING");
@@ -342,7 +334,7 @@
     document.getElementById("opsResult").textContent = "";
     document.getElementById("opsLog").textContent = "";
     paymentSucceeded = false;
-    updateStep8Enabled();
+    updatePostPaymentEnabled();
 
     resetLifecycle();
     if (orderId) markLifecycle("session");
@@ -467,7 +459,7 @@
       orderId = data.orderId;
       document.getElementById("orderResult").textContent = "Session ready — see summary bar above.";
       document.getElementById("payBtn").disabled = !selectedApm;
-      updateStep8Enabled();
+      updatePostPaymentEnabled();
       setStatus("PENDING");
       markLifecycle("session");
       updateSummary();
@@ -516,9 +508,13 @@
       if (data.redirectUrl) {
         redirectBtn.disabled = false;
         redirectBtn.dataset.url = data.redirectUrl;
-        redirectEl.textContent = "redirectUrl received — click the button above to go there.";
+        redirectBtn.textContent = `↗ Redirect to ${selectedApm.label}`;
+        redirectEl.textContent = "Opening automatically — click the button again if it didn't open (e.g. popup blocked).";
+        markLifecycle("redirect");
+        window.open(data.redirectUrl, "_blank", "noopener,noreferrer");
       } else {
         redirectBtn.disabled = true;
+        redirectBtn.textContent = "↗ Go to redirect page";
         delete redirectBtn.dataset.url;
         redirectEl.textContent = "No redirect required for this APM/result.";
         if (data.transactionStatus === "APPROVED" || data.transactionStatus === "DECLINED") {
@@ -527,7 +523,7 @@
       }
       ["checkStatusBtn", "txnDetailsBtn"].forEach((id) => (document.getElementById(id).disabled = false));
       paymentSucceeded = true;
-      updateStep8Enabled();
+      updatePostPaymentEnabled();
       updateStepHighlight();
     } else {
       resultEl.textContent = "Error: " + data.error;

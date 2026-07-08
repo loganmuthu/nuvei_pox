@@ -47,7 +47,10 @@
       "Bash(git --version)",
       "PowerShell(winget *)",
       "Bash(git init *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(grep *)"
     ]
   }
 }
